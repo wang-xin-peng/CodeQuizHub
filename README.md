@@ -1,2 +1,2 @@
-# EduQuizHub
-一个师生在线测评平台
+# CodeQuizHub
+一个在线代码作业测评平台
