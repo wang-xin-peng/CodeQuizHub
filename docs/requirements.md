@@ -570,19 +570,17 @@ class Solution {
 
 ## 8. 技术选型
 
-| 层次       | 选型                                   |
-| ---------- | -------------------------------------- |
-| 前端框架   | React + TypeScript                     |
-| UI 组件库  | Ant Design                             |
-| 代码编辑器 | Monaco Editor（VS Code 同款）          |
-| 后端框架   | Spring Boot (Java) / Express + Node.js |
-| 数据库     | PostgreSQL                             |
-| 缓存/队列  | Redis（兼作缓存和消息队列）            |
-| 判题沙箱   | Docker 容器隔离                        |
-| 文件存储   | 本地文件系统 / MinIO                   |
-| 部署       | Docker Compose                         |
-
-> 后端框架待团队讨论后确定。
+| 层次       | 选型                            |
+| ---------- | ------------------------------- |
+| 前端框架   | React 18 + TypeScript           |
+| UI 组件库  | Ant Design 5                    |
+| 代码编辑器 | Monaco Editor（VS Code 同款）   |
+| 后端框架   | FastAPI (Python 3.11+)          |
+| ORM        | SQLAlchemy 2.0 + Alembic        |
+| 数据库     | PostgreSQL 16                   |
+| 缓存/队列  | Redis 7（兼作缓存和消息队列）   |
+| 判题沙箱   | Docker 容器隔离                 |
+| 部署       | Docker Compose                  |
 
 ---
 
