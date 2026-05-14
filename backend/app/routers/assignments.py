@@ -1,4 +1,4 @@
-import json
+import uuid as uuid_mod
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Query
@@ -37,9 +37,10 @@ async def create_assignment(
     teacher: User = Depends(require_teacher),
     db: AsyncSession = Depends(get_db),
 ):
+    cid = uuid_mod.UUID(body.course_id)
     # Verify course ownership
     course_result = await db.execute(
-        select(Course).where(Course.id == body.course_id, Course.teacher_id == teacher.id)
+        select(Course).where(Course.id == cid, Course.teacher_id == teacher.id)
     )
     if not course_result.scalar_one_or_none():
         raise NotFoundError("course", body.course_id)
@@ -48,7 +49,7 @@ async def create_assignment(
         raise BusinessError(ErrorCode.VALIDATION_INVALID_FORMAT, "结束时间必须晚于开始时间")
 
     assignment = Assignment(
-        course_id=body.course_id,
+        course_id=cid,
         title=body.title,
         description=body.description,
         start_time=body.start_time,
@@ -61,10 +62,10 @@ async def create_assignment(
 
     # Add problems to assignment
     weights = body.score_weights or [100] * len(body.problem_ids)
-    for idx, (pid, weight) in enumerate(zip(body.problem_ids, weights)):
+    for idx, (pid_str, weight) in enumerate(zip(body.problem_ids, weights)):
         ap = AssignmentProblem(
             assignment_id=assignment.id,
-            problem_id=pid,
+            problem_id=uuid_mod.UUID(pid_str),
             score_weight=weight,
             order=idx,
         )
@@ -81,7 +82,8 @@ async def get_assignment(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(Assignment).where(Assignment.id == assignment_id))
+    aid = uuid_mod.UUID(assignment_id)
+    result = await db.execute(select(Assignment).where(Assignment.id == aid))
     assignment = result.scalar_one_or_none()
     if not assignment:
         raise NotFoundError("assignment", assignment_id)
@@ -91,7 +93,7 @@ async def get_assignment(
     # Load problems in this assignment
     ap_result = await db.execute(
         select(AssignmentProblem)
-        .where(AssignmentProblem.assignment_id == assignment_id)
+        .where(AssignmentProblem.assignment_id == aid)
         .order_by(AssignmentProblem.order)
     )
     aps = ap_result.scalars().all()
@@ -114,7 +116,8 @@ async def update_assignment(
     teacher: User = Depends(require_teacher),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(Assignment).where(Assignment.id == assignment_id))
+    aid = uuid_mod.UUID(assignment_id)
+    result = await db.execute(select(Assignment).where(Assignment.id == aid))
     assignment = result.scalar_one_or_none()
     if not assignment:
         raise NotFoundError("assignment", assignment_id)
@@ -153,22 +156,23 @@ async def list_course_assignments(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    cid = uuid_mod.UUID(course_id)
     # Verify access
     if user.role == "student":
         member_result = await db.execute(
             select(CourseStudent).where(
-                CourseStudent.course_id == course_id,
+                CourseStudent.course_id == cid,
                 CourseStudent.student_id == user.id,
             )
         )
         if not member_result.scalar_one_or_none():
             raise NotFoundError("course", course_id)
 
-    query = select(Assignment).where(Assignment.course_id == course_id)
+    query = select(Assignment).where(Assignment.course_id == cid)
     count_query = (
         select(func.count())
         .select_from(Assignment)
-        .where(Assignment.course_id == course_id)
+        .where(Assignment.course_id == cid)
     )
 
     # Students only see published/closed assignments
