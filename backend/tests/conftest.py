@@ -6,26 +6,12 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from sqlalchemy.ext.compiler import compiles
-from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.pool import StaticPool
 
 from app.core.security import create_access_token, hash_password
 from app.database import Base, get_db
 from app.main import app
 from app.models import *  # noqa: F403 - ensure all models are imported
-
-
-# --- SQLite compatibility for PostgreSQL-specific types ---
-
-@compiles(JSONB, "sqlite")
-def compile_jsonb_sqlite(type_, compiler, **kw):
-    return "TEXT"
-
-
-@compiles(ARRAY, "sqlite")
-def compile_array_sqlite(type_, compiler, **kw):
-    return "TEXT"
 
 
 # --- Engine and session setup ---

@@ -1,8 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, Uuid, func
-from sqlalchemy.dialects.postgresql import ARRAY, JSONB
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, JSON, String, Text, Uuid, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -19,7 +18,7 @@ class Problem(Base):
     difficulty: Mapped[str] = mapped_column(String(20), nullable=False, default="medium")
     time_limit: Mapped[int] = mapped_column(Integer, nullable=False, default=1000)
     memory_limit: Mapped[int] = mapped_column(Integer, nullable=False, default=256)
-    tags: Mapped[list[str]] = mapped_column(ARRAY(String(50)), default=list)
+    tags: Mapped[list[str]] = mapped_column(JSON, default=list)
     compare_mode: Mapped[str] = mapped_column(String(30), nullable=False, default="exact")
     teacher_id: Mapped[uuid.UUID] = mapped_column(
         Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
@@ -43,7 +42,7 @@ class ProblemFunctionSignature(Base):
     )
     language: Mapped[str] = mapped_column(String(20), nullable=False)
     function_name: Mapped[str] = mapped_column(String(100), nullable=False)
-    parameters_json: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    parameters_json: Mapped[dict] = mapped_column(JSON, nullable=False)
     return_type: Mapped[str] = mapped_column(String(100), nullable=False)
     code_template: Mapped[str] = mapped_column(Text, nullable=False)
     prelude_code: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -62,8 +61,8 @@ class TestCase(Base):
     problem_id: Mapped[uuid.UUID] = mapped_column(
         Uuid, ForeignKey("problems.id", ondelete="CASCADE"), nullable=False
     )
-    input_params_json: Mapped[dict] = mapped_column(JSONB, nullable=False)
-    expected_output_json: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    input_params_json: Mapped[dict] = mapped_column(JSON, nullable=False)
+    expected_output_json: Mapped[dict] = mapped_column(JSON, nullable=False)
     is_public: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     description: Mapped[str | None] = mapped_column(String(500), nullable=True)

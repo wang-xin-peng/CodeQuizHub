@@ -1,8 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, Uuid, func
-from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy import DateTime, ForeignKey, JSON, String, Uuid, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -16,9 +15,7 @@ class Course(Base):
     )
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     description: Mapped[str | None] = mapped_column(String, nullable=True)
-    languages: Mapped[list[str]] = mapped_column(
-        ARRAY(String(20)), nullable=False
-    )
+    languages: Mapped[list[str]] = mapped_column(JSON, nullable=False)
     invite_code: Mapped[str] = mapped_column(String(8), unique=True, nullable=False)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="active")
     teacher_id: Mapped[uuid.UUID] = mapped_column(

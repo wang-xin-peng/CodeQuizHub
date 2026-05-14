@@ -1,5 +1,6 @@
 import secrets
 import string
+import uuid as uuid_mod
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select
@@ -116,7 +117,8 @@ async def get_course(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(Course).where(Course.id == course_id))
+    cid = uuid_mod.UUID(course_id)
+    result = await db.execute(select(Course).where(Course.id == cid))
     course = result.scalar_one_or_none()
     if not course:
         raise NotFoundError("course", course_id)
@@ -141,8 +143,9 @@ async def update_course(
     teacher: User = Depends(require_teacher),
     db: AsyncSession = Depends(get_db),
 ):
+    cid = uuid_mod.UUID(course_id)
     result = await db.execute(
-        select(Course).where(Course.id == course_id, Course.teacher_id == teacher.id)
+        select(Course).where(Course.id == cid, Course.teacher_id == teacher.id)
     )
     course = result.scalar_one_or_none()
     if not course:
@@ -179,8 +182,9 @@ async def delete_course(
     teacher: User = Depends(require_teacher),
     db: AsyncSession = Depends(get_db),
 ):
+    cid = uuid_mod.UUID(course_id)
     result = await db.execute(
-        select(Course).where(Course.id == course_id, Course.teacher_id == teacher.id)
+        select(Course).where(Course.id == cid, Course.teacher_id == teacher.id)
     )
     course = result.scalar_one_or_none()
     if not course:
@@ -237,15 +241,16 @@ async def list_course_students(
     _teacher: User = Depends(require_teacher),
     db: AsyncSession = Depends(get_db),
 ):
+    cid = uuid_mod.UUID(course_id)
     # Verify course exists
-    course_result = await db.execute(select(Course).where(Course.id == course_id))
+    course_result = await db.execute(select(Course).where(Course.id == cid))
     if not course_result.scalar_one_or_none():
         raise NotFoundError("course", course_id)
 
     count_query = (
         select(func.count())
         .select_from(CourseStudent)
-        .where(CourseStudent.course_id == course_id)
+        .where(CourseStudent.course_id == cid)
     )
     total_result = await db.execute(count_query)
     total = total_result.scalar() or 0
@@ -253,7 +258,7 @@ async def list_course_students(
     query = (
         select(User)
         .join(CourseStudent, CourseStudent.student_id == User.id)
-        .where(CourseStudent.course_id == course_id)
+        .where(CourseStudent.course_id == cid)
         .offset((page - 1) * page_size)
         .limit(page_size)
     )
@@ -280,17 +285,19 @@ async def remove_student(
     teacher: User = Depends(require_teacher),
     db: AsyncSession = Depends(get_db),
 ):
+    cid = uuid_mod.UUID(course_id)
+    sid = uuid_mod.UUID(student_id)
     # Verify course belongs to teacher
     course_result = await db.execute(
-        select(Course).where(Course.id == course_id, Course.teacher_id == teacher.id)
+        select(Course).where(Course.id == cid, Course.teacher_id == teacher.id)
     )
     if not course_result.scalar_one_or_none():
         raise NotFoundError("course", course_id)
 
     result = await db.execute(
         select(CourseStudent).where(
-            CourseStudent.course_id == course_id,
-            CourseStudent.student_id == student_id,
+            CourseStudent.course_id == cid,
+            CourseStudent.student_id == sid,
         )
     )
     cs = result.scalar_one_or_none()
@@ -309,9 +316,10 @@ async def leave_course(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    cid = uuid_mod.UUID(course_id)
     result = await db.execute(
         select(CourseStudent).where(
-            CourseStudent.course_id == course_id,
+            CourseStudent.course_id == cid,
             CourseStudent.student_id == user.id,
         )
     )
