@@ -4,7 +4,8 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import String, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.errors import NotFoundError
+from app.core.error_codes import ErrorCode
+from app.core.errors import BusinessError, NotFoundError
 from app.database import get_db
 from app.dependencies import get_current_user, require_teacher
 from app.models.problem import Problem, ProblemFunctionSignature, TestCase
@@ -445,3 +446,196 @@ async def delete_test_case(
     await db.flush()
 
     return success_response(message="测试用例已删除")
+
+
+# Code execution
+import asyncio
+import json as json_mod
+import subprocess
+import traceback
+
+from pydantic import BaseModel, Field
+
+
+class RunCodeRequest(BaseModel):
+    language: str = Field(..., max_length=20)
+    code: str = Field(..., min_length=1)
+    assignment_id: str
+
+
+class RunCustomRequest(BaseModel):
+    language: str = Field(..., max_length=20)
+    code: str = Field(..., min_length=1)
+    assignment_id: str
+    custom_input: dict
+
+
+def _build_python_driver(function_name: str, parameters: list[dict], code: str, input_data: dict) -> str:
+    """Build a complete Python script with test harness."""
+    param_names = [p["name"] for p in parameters]
+    args = ", ".join(f'"{k}": __input["{k}"]' for k in input_data)
+    driver = f'''
+import json
+import sys
+
+{code}
+
+if __name__ == "__main__":
+    __input = json.loads(sys.stdin.read())
+    __result = {function_name}(**{{ {args} }})
+    print(json.dumps(__result))
+'''
+    return driver
+
+
+async def _run_python_async(code: str, input_str: str, time_limit_ms: int) -> tuple[str | None, str | None, int]:
+    """Execute Python code using subprocess in thread pool (async-safe)."""
+    loop = asyncio.get_running_loop()
+    timeout = time_limit_ms / 1000.0 + 2
+
+    try:
+        proc = await asyncio.wait_for(
+            asyncio.create_subprocess_exec(
+                "python", "-c", code,
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            ),
+            timeout=5,
+        )
+        stdout_bytes, stderr_bytes = await asyncio.wait_for(
+            proc.communicate(input=input_str.encode()),
+            timeout=timeout,
+        )
+        return stdout_bytes.decode().strip(), stderr_bytes.decode().strip(), proc.returncode or 0
+    except asyncio.TimeoutError:
+        return None, "Time limit exceeded", -1
+    except Exception:
+        return None, traceback.format_exc(), -1
+
+
+@router.post("/{problem_id}/run")
+async def run_code(
+    problem_id: str,
+    body: RunCodeRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    pid = uuid_mod.UUID(problem_id)
+    problem_result = await db.execute(select(Problem).where(Problem.id == pid))
+    problem = problem_result.scalar_one_or_none()
+    if not problem:
+        raise NotFoundError("problem", problem_id)
+
+    if body.language != "python":
+        return success_response({
+            "results": [],
+            "compile_error": f"Language '{body.language}' requires full judge service. Only Python is supported for lightweight execution.",
+        })
+
+    sig_result = await db.execute(
+        select(ProblemFunctionSignature).where(
+            ProblemFunctionSignature.problem_id == pid,
+            ProblemFunctionSignature.language == body.language,
+        )
+    )
+    sig = sig_result.scalar_one_or_none()
+    if not sig:
+        raise BusinessError(ErrorCode.PROBLEM_LANG_NOT_SUPPORTED, "该语言不支持")
+
+    tc_result = await db.execute(
+        select(TestCase)
+        .where(TestCase.problem_id == pid, TestCase.is_public == True)
+        .order_by(TestCase.order)
+    )
+    test_cases = tc_result.scalars().all()
+
+    results = []
+    compile_error = None
+    full_code = _build_python_driver(
+        sig.function_name,
+        sig.parameters_json if isinstance(sig.parameters_json, list) else [],
+        body.code,
+        test_cases[0].input_params_json if test_cases else {},
+    )
+
+    for tc in test_cases:
+        input_json = json_mod.dumps(tc.input_params_json)
+        stdout, stderr, exit_code = await _run_python_async(full_code, input_json, problem.time_limit)
+
+        if exit_code != 0 and stderr:
+            compile_error = stderr
+            break
+
+        result = {
+            "test_case_order": tc.order,
+            "status": "accepted",
+            "is_public": tc.is_public,
+            "input": tc.input_params_json,
+            "expected": tc.expected_output_json,
+            "actual": None,
+            "time_used": 0,
+            "memory_used": 0,
+        }
+
+        if exit_code != 0:
+            result["status"] = "runtime_error"
+        elif stdout is not None:
+            try:
+                actual = json_mod.loads(stdout)
+            except json_mod.JSONDecodeError:
+                actual = stdout
+            result["actual"] = actual
+            expected = tc.expected_output_json
+            if actual != expected:
+                result["status"] = "wrong_answer"
+        else:
+            result["status"] = "time_limit_exceeded"
+
+        results.append(result)
+
+    return success_response({"results": results, "compile_error": compile_error})
+
+
+@router.post("/{problem_id}/run-custom")
+async def run_custom_code(
+    problem_id: str,
+    body: RunCustomRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    pid = uuid_mod.UUID(problem_id)
+    problem_result = await db.execute(select(Problem).where(Problem.id == pid))
+    problem = problem_result.scalar_one_or_none()
+    if not problem:
+        raise NotFoundError("problem", problem_id)
+
+    sig_result = await db.execute(
+        select(ProblemFunctionSignature).where(
+            ProblemFunctionSignature.problem_id == pid,
+            ProblemFunctionSignature.language == body.language,
+        )
+    )
+    sig = sig_result.scalar_one_or_none()
+    if not sig:
+        raise BusinessError(ErrorCode.PROBLEM_LANG_NOT_SUPPORTED, "该语言不支持")
+
+    if body.language != "python":
+        return success_response({
+            "output": "Language not supported for custom run. Only Python is available.",
+            "error": None,
+        })
+
+    full_code = _build_python_driver(
+        sig.function_name,
+        sig.parameters_json if isinstance(sig.parameters_json, list) else [],
+        body.code,
+        body.custom_input,
+    )
+    input_json = json_mod.dumps(body.custom_input)
+    stdout, stderr, exit_code = await _run_python_async(full_code, input_json, problem.time_limit)
+
+    return success_response({
+        "output": stdout,
+        "error": stderr if exit_code != 0 else None,
+    })

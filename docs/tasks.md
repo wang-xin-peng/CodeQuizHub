@@ -164,28 +164,28 @@
 ## 阶段六：在线编程与代码提交
 
 ### 6.1 后端 - 代码运行与提交
-- ⬜ POST /api/problems/:id/run — 运行测试（公开用例）
-- ⬜ POST /api/problems/:id/run-custom — 自定义输入运行
-- ⬜ POST /api/submissions — 正式提交代码
-- ⬜ GET /api/submissions/:id — 获取提交结果
-- ⬜ GET /api/assignments/:id/submissions — 获取作业的所有提交
-- ⬜ WebSocket /ws/submissions/:id — 实时推送评测结果
-- ⬜ 代码草稿自动保存接口（PUT /api/drafts）
-- ⬜ 单元测试：提交与评测
+- ✅ POST /api/problems/:id/run — 运行测试（公开用例）
+- ✅ POST /api/problems/:id/run-custom — 自定义输入运行
+- ✅ POST /api/submissions — 正式提交代码
+- ✅ GET /api/submissions/:id — 获取提交结果
+- ✅ GET /api/assignments/:id/submissions — 获取作业的所有提交
+- ✅ WebSocket /ws/submissions/:id — 实时推送评测结果
+- ✅ 代码草稿自动保存接口（PUT /api/drafts）
+- ✅ 单元测试：提交与评测
 
 ### 6.2 前端 - 做题页面（核心页面）
-- ⬜ 左右分栏布局（题目描述 | 代码编辑器）
-- ⬜ Monaco Editor 集成
-  - ⬜ 语法高亮 + 自动补全
-  - ⬜ 代码模板预填充
-  - ⬜ 语言切换（自动加载对应模板）
-- ⬜ 运行测试功能（调用 /run，展示用例结果对比）
+- ✅ 左右分栏布局（题目描述 | 代码编辑器）
+- ✅ Monaco Editor 集成
+  - ✅ 语法高亮 + 自动补全
+  - ✅ 代码模板预填充
+  - ✅ 语言切换（自动加载对应模板）
+- ✅ 运行测试功能（调用 /run，展示用例结果对比）
 - ⬜ 自定义测试输入
-- ⬜ 提交功能（调用 /submissions，轮询/WebSocket 获取结果）
-- ⬜ 测试结果展示面板（AC/WA/TLE/RE/CE 状态 + 详情）
+- ✅ 提交功能（调用 /submissions，轮询/WebSocket 获取结果）
+- ✅ 测试结果展示面板（AC/WA/TLE/RE/CE 状态 + 详情）
 - ⬜ 提交历史列表
-- ⬜ 代码自动保存（防抖 3 秒）
-- ⬜ 代码重置按钮
+- ✅ 代码自动保存（防抖 3 秒）
+- ✅ 代码重置按钮
 - ⬜ 题目切换（上一题/下一题）
 
 ---

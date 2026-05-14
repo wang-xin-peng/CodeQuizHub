@@ -1,9 +1,12 @@
+import asyncio
 import json
+import logging
+import uuid as uuid_mod
 from datetime import datetime, timezone
 
 import redis.asyncio as aioredis
 from fastapi import APIRouter, Depends, Query, WebSocket, WebSocketDisconnect
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
@@ -17,15 +20,42 @@ from app.models.problem import Problem, ProblemFunctionSignature, TestCase
 from app.models.submission import Submission, SubmissionResult
 from app.models.user import User
 from app.schemas.response import paginated_response, success_response
-from app.schemas.submission import RunCodeRequest, SubmitCodeRequest
+from app.schemas.submission import SubmitCodeRequest
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
 
 async def get_redis():
-    return aioredis.from_url(settings.REDIS_URL, decode_responses=True)
+    try:
+        return aioredis.from_url(settings.REDIS_URL, decode_responses=True)
+    except Exception:
+        logger.warning("Redis connection failed, judge queue unavailable")
+        return None
+
+
+async def push_to_judge_queue(submission_id: str, problem_id: str, language: str, code: str, time_limit: int, memory_limit: int):
+    """Push submission to Redis judge queue. Gracefully handles Redis unavailability."""
+    r = await get_redis()
+    if r is None:
+        logger.warning(f"Redis unavailable, submission {submission_id} will not be judged")
+        return
+    try:
+        task = {
+            "submission_id": submission_id,
+            "problem_id": problem_id,
+            "language": language,
+            "code": code,
+            "time_limit": time_limit,
+            "memory_limit": memory_limit,
+        }
+        await r.lpush("judge_queue", json.dumps(task))
+    except Exception:
+        logger.exception(f"Failed to push submission {submission_id} to judge queue")
+    finally:
+        await r.aclose()
 
 
 @router.post("", status_code=202)
@@ -34,9 +64,12 @@ async def submit_code(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    aid = uuid_mod.UUID(body.assignment_id)
+    pid = uuid_mod.UUID(body.problem_id)
+
     # Verify assignment exists and is active
     assignment_result = await db.execute(
-        select(Assignment).where(Assignment.id == body.assignment_id)
+        select(Assignment).where(Assignment.id == aid)
     )
     assignment = assignment_result.scalar_one_or_none()
     if not assignment:
@@ -52,7 +85,7 @@ async def submit_code(
 
     # Verify problem exists
     problem_result = await db.execute(
-        select(Problem).where(Problem.id == body.problem_id)
+        select(Problem).where(Problem.id == pid)
     )
     problem = problem_result.scalar_one_or_none()
     if not problem:
@@ -61,7 +94,7 @@ async def submit_code(
     # Verify language is supported
     sig_result = await db.execute(
         select(ProblemFunctionSignature).where(
-            ProblemFunctionSignature.problem_id == body.problem_id,
+            ProblemFunctionSignature.problem_id == pid,
             ProblemFunctionSignature.language == body.language,
         )
     )
@@ -71,8 +104,8 @@ async def submit_code(
     # Create submission
     submission = Submission(
         student_id=user.id,
-        assignment_id=body.assignment_id,
-        problem_id=body.problem_id,
+        assignment_id=aid,
+        problem_id=pid,
         language=body.language,
         code=body.code,
         status="pending",
@@ -81,18 +114,17 @@ async def submit_code(
     await db.flush()
     await db.refresh(submission)
 
-    # Push to Redis judge queue
-    r = await get_redis()
-    task = {
-        "submission_id": str(submission.id),
-        "problem_id": str(body.problem_id),
-        "language": body.language,
-        "code": body.code,
-        "time_limit": problem.time_limit,
-        "memory_limit": problem.memory_limit,
-    }
-    await r.lpush("judge_queue", json.dumps(task))
-    await r.close()
+    # Push to Redis judge queue (fire-and-forget)
+    asyncio.create_task(
+        push_to_judge_queue(
+            str(submission.id),
+            str(pid),
+            body.language,
+            body.code,
+            problem.time_limit,
+            problem.memory_limit,
+        )
+    )
 
     return success_response({
         "submission_id": str(submission.id),
@@ -106,14 +138,15 @@ async def get_submission(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    sid = uuid_mod.UUID(submission_id)
     result = await db.execute(
-        select(Submission).where(Submission.id == submission_id)
+        select(Submission).where(Submission.id == sid)
     )
     submission = result.scalar_one_or_none()
     if not submission:
         raise NotFoundError("submission", submission_id)
 
-    # Only the submitter or teacher can view
+    # Only the submitter or teacher/admin can view
     if user.role == "student" and submission.student_id != user.id:
         raise NotFoundError("submission", submission_id)
 
@@ -133,7 +166,7 @@ async def get_submission(
 
     # Load per-testcase results
     sr_result = await db.execute(
-        select(SubmissionResult).where(SubmissionResult.submission_id == submission_id)
+        select(SubmissionResult).where(SubmissionResult.submission_id == sid)
     )
     results = sr_result.scalars().all()
 
@@ -181,11 +214,16 @@ async def list_assignment_submissions(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    query = select(Submission).where(Submission.assignment_id == assignment_id)
+    aid = uuid_mod.UUID(assignment_id)
+    query = select(Submission).where(Submission.assignment_id == aid)
 
     # Students only see their own submissions
     if user.role == "student":
         query = query.where(Submission.student_id == user.id)
+
+    count_query = select(func.count()).select_from(Submission).where(Submission.assignment_id == aid)
+    total_result = await db.execute(count_query)
+    total = total_result.scalar() or 0
 
     query = query.order_by(Submission.submitted_at.desc()).offset((page - 1) * page_size).limit(page_size)
     result = await db.execute(query)
@@ -204,7 +242,7 @@ async def list_assignment_submissions(
         for s in submissions
     ]
 
-    return paginated_response(items, len(items), page, page_size)
+    return paginated_response(items, total, page, page_size)
 
 
 # WebSocket for real-time submission status
@@ -213,9 +251,12 @@ async def submission_websocket(websocket: WebSocket, submission_id: str):
     await websocket.accept()
     r = await get_redis()
 
-    try:
-        import asyncio
+    if r is None:
+        await websocket.send_json({"status": "pending", "error": "Judge service unavailable"})
+        await websocket.close()
+        return
 
+    try:
         terminal_statuses = {
             "accepted", "wrong_answer", "time_limit_exceeded",
             "memory_limit_exceeded", "runtime_error", "compilation_error",
@@ -232,26 +273,31 @@ async def submission_websocket(websocket: WebSocket, submission_id: str):
             await asyncio.sleep(1)
     except WebSocketDisconnect:
         pass
+    except Exception:
+        logger.exception(f"WebSocket error for submission {submission_id}")
     finally:
-        await r.close()
+        await r.aclose()
         await websocket.close()
 
 
 # Code draft (auto-save)
 @router.put("/drafts")
 async def save_draft(
-    problem_id: str,
-    assignment_id: str,
-    language: str,
-    code: str,
+    problem_id: str = Query(...),
+    assignment_id: str = Query(...),
+    language: str = Query(...),
+    code: str = Query(...),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    pid = uuid_mod.UUID(problem_id)
+    aid = uuid_mod.UUID(assignment_id)
+
     result = await db.execute(
         select(CodeDraft).where(
             CodeDraft.student_id == user.id,
-            CodeDraft.problem_id == problem_id,
-            CodeDraft.assignment_id == assignment_id,
+            CodeDraft.problem_id == pid,
+            CodeDraft.assignment_id == aid,
             CodeDraft.language == language,
         )
     )
@@ -262,8 +308,8 @@ async def save_draft(
     else:
         draft = CodeDraft(
             student_id=user.id,
-            problem_id=problem_id,
-            assignment_id=assignment_id,
+            problem_id=pid,
+            assignment_id=aid,
             language=language,
             code=code,
         )
@@ -276,16 +322,19 @@ async def save_draft(
 @router.get("/drafts/{problem_id}")
 async def get_draft(
     problem_id: str,
-    assignment_id: str,
-    language: str,
+    assignment_id: str = Query(...),
+    language: str = Query(...),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    pid = uuid_mod.UUID(problem_id)
+    aid = uuid_mod.UUID(assignment_id)
+
     result = await db.execute(
         select(CodeDraft).where(
             CodeDraft.student_id == user.id,
-            CodeDraft.problem_id == problem_id,
-            CodeDraft.assignment_id == assignment_id,
+            CodeDraft.problem_id == pid,
+            CodeDraft.assignment_id == aid,
             CodeDraft.language == language,
         )
     )
