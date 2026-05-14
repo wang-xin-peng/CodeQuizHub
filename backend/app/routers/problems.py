@@ -1,5 +1,7 @@
+import uuid as uuid_mod
+
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import func, select
+from sqlalchemy import String, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import NotFoundError
@@ -55,7 +57,7 @@ async def create_problem(
     await db.refresh(problem)
 
     # Create function signatures
-    for idx, sig in enumerate(body.signatures):
+    for sig in body.signatures:
         signature = ProblemFunctionSignature(
             problem_id=problem.id,
             language=sig.language,
@@ -108,8 +110,10 @@ async def list_problems(
         count_query = count_query.where(Problem.difficulty == difficulty)
 
     if tag:
-        query = query.where(Problem.tags.contains([tag]))
-        count_query = count_query.where(Problem.tags.contains([tag]))
+        # Use string cast + contains for cross-database compatibility (SQLite + PostgreSQL)
+        tag_filter = cast(Problem.tags, String).contains(f'"{tag}"')
+        query = query.where(tag_filter)
+        count_query = count_query.where(tag_filter)
 
     if language:
         # Filter problems that have a signature for the given language
@@ -146,7 +150,8 @@ async def get_problem(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(Problem).where(Problem.id == problem_id))
+    pid = uuid_mod.UUID(problem_id)
+    result = await db.execute(select(Problem).where(Problem.id == pid))
     problem = result.scalar_one_or_none()
     if not problem:
         raise NotFoundError("problem", problem_id)
@@ -156,7 +161,7 @@ async def get_problem(
     # Load signatures
     sig_result = await db.execute(
         select(ProblemFunctionSignature).where(
-            ProblemFunctionSignature.problem_id == problem_id
+            ProblemFunctionSignature.problem_id == pid
         )
     )
     signatures = sig_result.scalars().all()
@@ -176,7 +181,7 @@ async def get_problem(
     # Load test cases
     tc_result = await db.execute(
         select(TestCase)
-        .where(TestCase.problem_id == problem_id)
+        .where(TestCase.problem_id == pid)
         .order_by(TestCase.order)
     )
     test_cases = tc_result.scalars().all()
@@ -219,8 +224,9 @@ async def update_problem(
     teacher: User = Depends(require_teacher),
     db: AsyncSession = Depends(get_db),
 ):
+    pid = uuid_mod.UUID(problem_id)
     result = await db.execute(
-        select(Problem).where(Problem.id == problem_id, Problem.teacher_id == teacher.id)
+        select(Problem).where(Problem.id == pid, Problem.teacher_id == teacher.id)
     )
     problem = result.scalar_one_or_none()
     if not problem:
@@ -253,8 +259,9 @@ async def delete_problem(
     teacher: User = Depends(require_teacher),
     db: AsyncSession = Depends(get_db),
 ):
+    pid = uuid_mod.UUID(problem_id)
     result = await db.execute(
-        select(Problem).where(Problem.id == problem_id, Problem.teacher_id == teacher.id)
+        select(Problem).where(Problem.id == pid, Problem.teacher_id == teacher.id)
     )
     problem = result.scalar_one_or_none()
     if not problem:
@@ -274,9 +281,10 @@ async def upsert_signature(
     teacher: User = Depends(require_teacher),
     db: AsyncSession = Depends(get_db),
 ):
+    pid = uuid_mod.UUID(problem_id)
     # Verify problem ownership
     problem_result = await db.execute(
-        select(Problem).where(Problem.id == problem_id, Problem.teacher_id == teacher.id)
+        select(Problem).where(Problem.id == pid, Problem.teacher_id == teacher.id)
     )
     if not problem_result.scalar_one_or_none():
         raise NotFoundError("problem", problem_id)
@@ -284,7 +292,7 @@ async def upsert_signature(
     # Check if signature for this language exists
     existing_result = await db.execute(
         select(ProblemFunctionSignature).where(
-            ProblemFunctionSignature.problem_id == problem_id,
+            ProblemFunctionSignature.problem_id == pid,
             ProblemFunctionSignature.language == body.language,
         )
     )
@@ -299,7 +307,7 @@ async def upsert_signature(
         existing.driver_template = body.driver_template
     else:
         sig = ProblemFunctionSignature(
-            problem_id=problem_id,
+            problem_id=pid,
             language=body.language,
             function_name=body.function_name,
             parameters_json=[p.model_dump() for p in body.parameters],
@@ -321,9 +329,10 @@ async def get_signature(
     _user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    pid = uuid_mod.UUID(problem_id)
     result = await db.execute(
         select(ProblemFunctionSignature).where(
-            ProblemFunctionSignature.problem_id == problem_id,
+            ProblemFunctionSignature.problem_id == pid,
             ProblemFunctionSignature.language == language,
         )
     )
@@ -350,20 +359,21 @@ async def add_test_case(
     teacher: User = Depends(require_teacher),
     db: AsyncSession = Depends(get_db),
 ):
+    pid = uuid_mod.UUID(problem_id)
     problem_result = await db.execute(
-        select(Problem).where(Problem.id == problem_id, Problem.teacher_id == teacher.id)
+        select(Problem).where(Problem.id == pid, Problem.teacher_id == teacher.id)
     )
     if not problem_result.scalar_one_or_none():
         raise NotFoundError("problem", problem_id)
 
     # Get next order
     max_order_result = await db.execute(
-        select(func.max(TestCase.order)).where(TestCase.problem_id == problem_id)
+        select(func.max(TestCase.order)).where(TestCase.problem_id == pid)
     )
     max_order = max_order_result.scalar() or -1
 
     tc = TestCase(
-        problem_id=problem_id,
+        problem_id=pid,
         input_params_json=body.input_params,
         expected_output_json=body.expected_output,
         is_public=body.is_public,
@@ -389,13 +399,15 @@ async def update_test_case(
     teacher: User = Depends(require_teacher),
     db: AsyncSession = Depends(get_db),
 ):
+    pid = uuid_mod.UUID(problem_id)
+    tid = uuid_mod.UUID(tc_id)
     problem_result = await db.execute(
-        select(Problem).where(Problem.id == problem_id, Problem.teacher_id == teacher.id)
+        select(Problem).where(Problem.id == pid, Problem.teacher_id == teacher.id)
     )
     if not problem_result.scalar_one_or_none():
         raise NotFoundError("problem", problem_id)
 
-    tc_result = await db.execute(select(TestCase).where(TestCase.id == tc_id))
+    tc_result = await db.execute(select(TestCase).where(TestCase.id == tid))
     tc = tc_result.scalar_one_or_none()
     if not tc:
         raise NotFoundError("test_case", tc_id)
@@ -416,13 +428,15 @@ async def delete_test_case(
     teacher: User = Depends(require_teacher),
     db: AsyncSession = Depends(get_db),
 ):
+    pid = uuid_mod.UUID(problem_id)
+    tid = uuid_mod.UUID(tc_id)
     problem_result = await db.execute(
-        select(Problem).where(Problem.id == problem_id, Problem.teacher_id == teacher.id)
+        select(Problem).where(Problem.id == pid, Problem.teacher_id == teacher.id)
     )
     if not problem_result.scalar_one_or_none():
         raise NotFoundError("problem", problem_id)
 
-    tc_result = await db.execute(select(TestCase).where(TestCase.id == tc_id))
+    tc_result = await db.execute(select(TestCase).where(TestCase.id == tid))
     tc = tc_result.scalar_one_or_none()
     if not tc:
         raise NotFoundError("test_case", tc_id)
