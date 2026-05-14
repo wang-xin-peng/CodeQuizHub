@@ -1,8 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, Text, func
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import DateTime, ForeignKey, String, Text, Uuid, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -12,16 +11,16 @@ class CodeDraft(Base):
     __tablename__ = "code_drafts"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+        Uuid, primary_key=True, default=uuid.uuid4
     )
     student_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+        Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
     problem_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("problems.id", ondelete="CASCADE"), nullable=False
+        Uuid, ForeignKey("problems.id", ondelete="CASCADE"), nullable=False
     )
     assignment_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("assignments.id", ondelete="CASCADE"), nullable=False
+        Uuid, ForeignKey("assignments.id", ondelete="CASCADE"), nullable=False
     )
     language: Mapped[str] = mapped_column(String(20), nullable=False)
     code: Mapped[str] = mapped_column(Text, nullable=False)

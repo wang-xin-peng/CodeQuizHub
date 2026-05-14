@@ -1,8 +1,8 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, func
-from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, Uuid, func
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -12,7 +12,7 @@ class Problem(Base):
     __tablename__ = "problems"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+        Uuid, primary_key=True, default=uuid.uuid4
     )
     title: Mapped[str] = mapped_column(String(300), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
@@ -22,7 +22,7 @@ class Problem(Base):
     tags: Mapped[list[str]] = mapped_column(ARRAY(String(50)), default=list)
     compare_mode: Mapped[str] = mapped_column(String(30), nullable=False, default="exact")
     teacher_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+        Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=func.now()
@@ -36,10 +36,10 @@ class ProblemFunctionSignature(Base):
     __tablename__ = "problem_function_signatures"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+        Uuid, primary_key=True, default=uuid.uuid4
     )
     problem_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("problems.id", ondelete="CASCADE"), nullable=False
+        Uuid, ForeignKey("problems.id", ondelete="CASCADE"), nullable=False
     )
     language: Mapped[str] = mapped_column(String(20), nullable=False)
     function_name: Mapped[str] = mapped_column(String(100), nullable=False)
@@ -57,10 +57,10 @@ class TestCase(Base):
     __tablename__ = "test_cases"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+        Uuid, primary_key=True, default=uuid.uuid4
     )
     problem_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("problems.id", ondelete="CASCADE"), nullable=False
+        Uuid, ForeignKey("problems.id", ondelete="CASCADE"), nullable=False
     )
     input_params_json: Mapped[dict] = mapped_column(JSONB, nullable=False)
     expected_output_json: Mapped[dict] = mapped_column(JSONB, nullable=False)

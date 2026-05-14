@@ -5,6 +5,7 @@ import {
   BookOutlined,
   CodeOutlined,
   DashboardOutlined,
+  KeyOutlined,
   LogoutOutlined,
   TeamOutlined,
   UserOutlined,
@@ -60,6 +61,11 @@ export default function AppLayout() {
       label: '个人信息',
     },
     {
+      key: 'password',
+      icon: <KeyOutlined />,
+      label: '修改密码',
+    },
+    {
       key: 'logout',
       icon: <LogoutOutlined />,
       label: '退出登录',
@@ -75,6 +81,10 @@ export default function AppLayout() {
     if (key === 'logout') {
       logout();
       navigate('/login');
+    } else if (key === 'profile') {
+      navigate('/profile');
+    } else if (key === 'password') {
+      navigate('/profile/password');
     }
   };
 

@@ -31,3 +31,4 @@ frontend/dist/
 
 # Docker volumes
 pgdata/
+nul

@@ -14,6 +14,8 @@ import AssignmentDetail from '../pages/Assignment/AssignmentDetail';
 import AssignmentCreate from '../pages/Assignment/AssignmentCreate';
 import GradeOverview from '../pages/Grade/GradeOverview';
 import AdminUsers from '../pages/Admin/AdminUsers';
+import Profile from '../pages/Profile/Profile';
+import ChangePassword from '../pages/Profile/ChangePassword';
 
 export const router = createBrowserRouter([
   {
@@ -32,6 +34,8 @@ export const router = createBrowserRouter([
         children: [
           { path: '/', element: <Dashboard /> },
           { path: '/dashboard', element: <Dashboard /> },
+          { path: '/profile', element: <Profile /> },
+          { path: '/profile/password', element: <ChangePassword /> },
           { path: '/courses', element: <CourseList /> },
           { path: '/courses/create', element: <CourseCreate /> },
           { path: '/courses/:id', element: <CourseDetail /> },

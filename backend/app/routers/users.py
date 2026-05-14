@@ -1,3 +1,5 @@
+import uuid as uuid_mod
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -116,7 +118,7 @@ async def update_user_status(
     _admin: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(User).where(User.id == user_id))
+    result = await db.execute(select(User).where(User.id == uuid_mod.UUID(user_id)))
     target = result.scalar_one_or_none()
     if not target:
         raise BusinessError(ErrorCode.USER_NOT_FOUND, "用户不存在", 404)
@@ -137,7 +139,7 @@ async def update_user_role(
     if role not in ("admin", "teacher", "student"):
         raise BusinessError(ErrorCode.VALIDATION_INVALID_FORMAT, "无效的角色", 400)
 
-    result = await db.execute(select(User).where(User.id == user_id))
+    result = await db.execute(select(User).where(User.id == uuid_mod.UUID(user_id)))
     target = result.scalar_one_or_none()
     if not target:
         raise BusinessError(ErrorCode.USER_NOT_FOUND, "用户不存在", 404)
