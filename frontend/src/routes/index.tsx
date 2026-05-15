@@ -1,30 +1,49 @@
+import { lazy, Suspense } from 'react';
 import { createBrowserRouter } from 'react-router-dom';
+import { Spin } from 'antd';
 import { ProtectedRoute } from './ProtectedRoute';
 import AppLayout from '../components/Layout/AppLayout';
-import Login from '../pages/Auth/Login';
-import Register from '../pages/Auth/Register';
-import Dashboard from '../pages/Dashboard/Dashboard';
-import CourseList from '../pages/Course/CourseList';
-import CourseDetail from '../pages/Course/CourseDetail';
-import CourseCreate from '../pages/Course/CourseCreate';
-import ProblemList from '../pages/Problem/ProblemList';
-import ProblemCreate from '../pages/Problem/ProblemCreate';
-import ProblemSolve from '../pages/Problem/ProblemSolve';
-import AssignmentDetail from '../pages/Assignment/AssignmentDetail';
-import AssignmentCreate from '../pages/Assignment/AssignmentCreate';
-import GradeOverview from '../pages/Grade/GradeOverview';
-import AdminUsers from '../pages/Admin/AdminUsers';
-import Profile from '../pages/Profile/Profile';
-import ChangePassword from '../pages/Profile/ChangePassword';
+
+// Code-split each page with React.lazy
+const Login = lazy(() => import('../pages/Auth/Login'));
+const Register = lazy(() => import('../pages/Auth/Register'));
+const Dashboard = lazy(() => import('../pages/Dashboard/Dashboard'));
+const CourseList = lazy(() => import('../pages/Course/CourseList'));
+const CourseDetail = lazy(() => import('../pages/Course/CourseDetail'));
+const CourseCreate = lazy(() => import('../pages/Course/CourseCreate'));
+const ProblemList = lazy(() => import('../pages/Problem/ProblemList'));
+const ProblemCreate = lazy(() => import('../pages/Problem/ProblemCreate'));
+const ProblemEdit = lazy(() => import('../pages/Problem/ProblemEdit'));
+const ProblemSolve = lazy(() => import('../pages/Problem/ProblemSolve'));
+const AssignmentDetail = lazy(() => import('../pages/Assignment/AssignmentDetail'));
+const AssignmentCreate = lazy(() => import('../pages/Assignment/AssignmentCreate'));
+const GradeOverview = lazy(() => import('../pages/Grade/GradeOverview'));
+const GradesList = lazy(() => import('../pages/Grade/GradesList'));
+const StudentGradeDetail = lazy(() => import('../pages/Grade/StudentGradeDetail'));
+const AdminUsers = lazy(() => import('../pages/Admin/AdminUsers'));
+const Profile = lazy(() => import('../pages/Profile/Profile'));
+const ChangePassword = lazy(() => import('../pages/Profile/ChangePassword'));
+const SubmissionHistory = lazy(() => import('../pages/Submission/SubmissionHistory'));
+const SubmissionResult = lazy(() => import('../pages/Submission/SubmissionResult'));
+
+const PageLoading = () => (
+  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
+    <Spin size="large" />
+  </div>
+);
+
+const SuspenseWrapper = ({ children }: { children: React.ReactNode }) => (
+  <Suspense fallback={<PageLoading />}>{children}</Suspense>
+);
 
 export const router = createBrowserRouter([
   {
     path: '/login',
-    element: <Login />,
+    element: <SuspenseWrapper><Login /></SuspenseWrapper>,
   },
   {
     path: '/register',
-    element: <Register />,
+    element: <SuspenseWrapper><Register /></SuspenseWrapper>,
   },
   {
     element: <ProtectedRoute />,
@@ -32,24 +51,32 @@ export const router = createBrowserRouter([
       {
         element: <AppLayout />,
         children: [
-          { path: '/', element: <Dashboard /> },
-          { path: '/dashboard', element: <Dashboard /> },
-          { path: '/profile', element: <Profile /> },
-          { path: '/profile/password', element: <ChangePassword /> },
-          { path: '/courses', element: <CourseList /> },
-          { path: '/courses/create', element: <CourseCreate /> },
-          { path: '/courses/:id', element: <CourseDetail /> },
-          { path: '/problems', element: <ProblemList /> },
-          { path: '/problems/create', element: <ProblemCreate /> },
-          { path: '/assignments/create', element: <AssignmentCreate /> },
-          { path: '/assignments/:id', element: <AssignmentDetail /> },
-          { path: '/grades/:courseId', element: <GradeOverview /> },
+          { path: '/', element: <SuspenseWrapper><Dashboard /></SuspenseWrapper> },
+          { path: '/dashboard', element: <SuspenseWrapper><Dashboard /></SuspenseWrapper> },
+          { path: '/profile', element: <SuspenseWrapper><Profile /></SuspenseWrapper> },
+          { path: '/profile/password', element: <SuspenseWrapper><ChangePassword /></SuspenseWrapper> },
+          { path: '/courses', element: <SuspenseWrapper><CourseList /></SuspenseWrapper> },
+          { path: '/courses/create', element: <SuspenseWrapper><CourseCreate /></SuspenseWrapper> },
+          { path: '/courses/:id', element: <SuspenseWrapper><CourseDetail /></SuspenseWrapper> },
+          { path: '/problems', element: <SuspenseWrapper><ProblemList /></SuspenseWrapper> },
+          { path: '/problems/create', element: <SuspenseWrapper><ProblemCreate /></SuspenseWrapper> },
+          { path: '/problems/:id/edit', element: <SuspenseWrapper><ProblemEdit /></SuspenseWrapper> },
+          { path: '/assignments/create', element: <SuspenseWrapper><AssignmentCreate /></SuspenseWrapper> },
+          { path: '/assignments/:id', element: <SuspenseWrapper><AssignmentDetail /></SuspenseWrapper> },
+          { path: '/grades', element: <SuspenseWrapper><GradesList /></SuspenseWrapper> },
+          { path: '/grades/:courseId', element: <SuspenseWrapper><GradeOverview /></SuspenseWrapper> },
+          { path: '/grades/:courseId/students/:studentId', element: <SuspenseWrapper><StudentGradeDetail /></SuspenseWrapper> },
+          { path: '/submissions/:assignmentId', element: <SuspenseWrapper><SubmissionHistory /></SuspenseWrapper> },
+          { path: '/submissions/:assignmentId/:problemId', element: <SuspenseWrapper><SubmissionHistory /></SuspenseWrapper> },
         ],
       },
       {
-        // Full-page layout for problem solving (no sidebar)
         path: '/solve/:assignmentId/:problemId',
-        element: <ProblemSolve />,
+        element: <SuspenseWrapper><ProblemSolve /></SuspenseWrapper>,
+      },
+      {
+        path: '/solve/:assignmentId/:problemId/submission/:submissionId',
+        element: <SuspenseWrapper><SubmissionResult /></SuspenseWrapper>,
       },
     ],
   },
@@ -59,7 +86,7 @@ export const router = createBrowserRouter([
       {
         element: <AppLayout />,
         children: [
-          { path: '/admin/users', element: <AdminUsers /> },
+          { path: '/admin/users', element: <SuspenseWrapper><AdminUsers /></SuspenseWrapper> },
         ],
       },
     ],

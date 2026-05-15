@@ -1,7 +1,6 @@
-import re
 from typing import Literal
 
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field
 
 
 class RegisterRequest(BaseModel):
@@ -9,17 +8,6 @@ class RegisterRequest(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=8, max_length=128)
     role: Literal["teacher", "student"]
-
-    @field_validator("password")
-    @classmethod
-    def validate_password(cls, v: str) -> str:
-        if not re.search(r"[A-Z]", v):
-            raise ValueError("密码必须包含大写字母")
-        if not re.search(r"[a-z]", v):
-            raise ValueError("密码必须包含小写字母")
-        if not re.search(r"[0-9]", v):
-            raise ValueError("密码必须包含数字")
-        return v
 
 
 class LoginRequest(BaseModel):
@@ -54,14 +42,3 @@ class UpdateProfileRequest(BaseModel):
 class ChangePasswordRequest(BaseModel):
     old_password: str = Field(..., min_length=1)
     new_password: str = Field(..., min_length=8, max_length=128)
-
-    @field_validator("new_password")
-    @classmethod
-    def validate_new_password(cls, v: str) -> str:
-        if not re.search(r"[A-Z]", v):
-            raise ValueError("密码必须包含大写字母")
-        if not re.search(r"[a-z]", v):
-            raise ValueError("密码必须包含小写字母")
-        if not re.search(r"[0-9]", v):
-            raise ValueError("密码必须包含数字")
-        return v

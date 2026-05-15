@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { Layout, Menu, Dropdown, Avatar, Space } from 'antd';
+import { Layout, Menu, Dropdown, Avatar, Space, Typography } from 'antd';
 import {
+  BarChartOutlined,
   BookOutlined,
   CodeOutlined,
   DashboardOutlined,
@@ -9,10 +10,13 @@ import {
   LogoutOutlined,
   TeamOutlined,
   UserOutlined,
+  MenuFoldOutlined,
+  MenuUnfoldOutlined,
 } from '@ant-design/icons';
 import { useAuthStore } from '../../store/authStore';
 
 const { Header, Sider, Content } = Layout;
+const { Text } = Typography;
 
 export default function AppLayout() {
   const [collapsed, setCollapsed] = useState(false);
@@ -34,6 +38,15 @@ export default function AppLayout() {
       icon: <BookOutlined />,
       label: '课程管理',
     },
+    ...(isTeacher
+      ? [
+          {
+            key: '/grades',
+            icon: <BarChartOutlined />,
+            label: '成绩管理',
+          },
+        ]
+      : []),
     ...(isTeacher
       ? [
           {
@@ -65,6 +78,7 @@ export default function AppLayout() {
       icon: <KeyOutlined />,
       label: '修改密码',
     },
+    { type: 'divider' as const },
     {
       key: 'logout',
       icon: <LogoutOutlined />,
@@ -88,49 +102,96 @@ export default function AppLayout() {
     }
   };
 
+  // Determine which menu item is selected
+  const selectedKey = '/' + location.pathname.split('/')[1];
+
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Sider collapsible collapsed={collapsed} onCollapse={setCollapsed}>
+      {/* ── Sidebar ── */}
+      <Sider
+        collapsible
+        collapsed={collapsed}
+        onCollapse={setCollapsed}
+        trigger={null}
+        width={220}
+        style={{
+          borderRight: '1px solid #ebebeb',
+          background: '#ffffff',
+        }}
+      >
+        {/* Logo area */}
         <div
           style={{
             height: 64,
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center',
-            color: '#fff',
-            fontSize: collapsed ? 16 : 20,
-            fontWeight: 'bold',
+            justifyContent: collapsed ? 'center' : 'flex-start',
+            padding: collapsed ? 0 : '0 20px',
+            borderBottom: '1px solid #ebebeb',
           }}
         >
-          {collapsed ? 'CQ' : 'CodeQuizHub'}
+          <Text strong style={{ fontSize: collapsed ? 18 : 20, color: '#171717', letterSpacing: '-0.6px' }}>
+            {collapsed ? 'CQ' : 'CodeQuizHub'}
+          </Text>
         </div>
+
         <Menu
-          theme="dark"
           mode="inline"
-          selectedKeys={[location.pathname]}
+          selectedKeys={[selectedKey]}
           items={menuItems}
           onClick={handleMenuClick}
+          style={{ border: 'none', marginTop: 8 }}
         />
       </Sider>
+
       <Layout>
+        {/* ── Top Header ── */}
         <Header
           style={{
-            padding: '0 24px',
-            background: '#fff',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'flex-end',
-            boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
+            justifyContent: 'space-between',
+            height: 64,
+            borderBottom: '1px solid #ebebeb',
+            background: '#ffffff',
+            padding: '0 24px',
           }}
         >
-          <Dropdown menu={{ items: userMenuItems, onClick: handleUserMenuClick }}>
-            <Space style={{ cursor: 'pointer' }}>
-              <Avatar icon={<UserOutlined />} />
-              <span>{user?.nickname || user?.username}</span>
+          {/* Collapse toggle */}
+          <div
+            style={{ cursor: 'pointer', fontSize: 16, color: '#888888' }}
+            onClick={() => setCollapsed(!collapsed)}
+          >
+            {collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+          </div>
+
+          {/* User menu */}
+          <Dropdown
+            menu={{ items: userMenuItems, onClick: handleUserMenuClick }}
+            placement="bottomRight"
+          >
+            <Space style={{ cursor: 'pointer' }} size={10}>
+              <Avatar
+                size={28}
+                icon={<UserOutlined />}
+                style={{ background: '#f5f5f5', color: '#171717' }}
+              />
+              <Text style={{ color: '#171717', fontSize: 14, fontWeight: 500 }}>
+                {user?.nickname || user?.username}
+              </Text>
             </Space>
           </Dropdown>
         </Header>
-        <Content style={{ margin: 24, padding: 24, background: '#fff', borderRadius: 8 }}>
+
+        {/* ── Content ── */}
+        <Content
+          style={{
+            margin: 0,
+            padding: 24,
+            background: '#fafafa',
+            minHeight: 'calc(100vh - 64px)',
+          }}
+        >
           <Outlet />
         </Content>
       </Layout>

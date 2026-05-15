@@ -66,17 +66,14 @@ class DockerExecutor:
         source_file = SOURCE_FILES[self.language]
         compile_cmd = COMPILE_COMMANDS.get(self.language)
         run_cmd = RUN_COMMANDS[self.language]
-
-        # Escape single quotes in input for shell
-        escaped_input = input_json.replace("'", "'\\''")
+        input_file = "input.json"
 
         # Build the command to run inside container
+        # Pass input via a file to avoid shell quoting issues
         if compile_cmd:
-            # Compiled language: compile then run
-            full_cmd = f"sh -c 'cd /workspace && {compile_cmd} 2>&1 && {run_cmd} '\\'{escaped_input}\\''"
+            full_cmd = f"sh -c 'cd /workspace && {compile_cmd} 2>&1 && {run_cmd} \"$(cat {input_file})\"'"
         else:
-            # Interpreted language: run directly
-            full_cmd = f"sh -c 'cd /workspace && {run_cmd} '\\'{escaped_input}\\''"
+            full_cmd = f"sh -c 'cd /workspace && {run_cmd} \"$(cat {input_file})\"'"
 
         # Timeout in seconds (add 2s buffer)
         timeout_s = (self.time_limit_ms / 1000) + 2
@@ -91,49 +88,56 @@ class DockerExecutor:
 
             start_time = time.time()
 
-            container = docker_client.containers.run(
-                image=self.image,
-                command=full_cmd,
-                mem_limit=f"{self.memory_limit_mb}m",
-                nano_cpus=1_000_000_000,  # 1 CPU
-                network_disabled=True,
-                read_only=False,  # Need write for /workspace
-                user="nobody",
-                working_dir="/workspace",
-                volumes={},
-                stdin_open=False,
-                detach=True,
-                environment={"PYTHONDONTWRITEBYTECODE": "1"},
-            )
-
-            # Copy source code into container
+            # Create tar archive with source code and input data
             import tarfile
             import io
 
             tar_stream = io.BytesIO()
             with tarfile.open(fileobj=tar_stream, mode='w') as tar:
+                # Source code
                 code_bytes = code.encode('utf-8')
                 info = tarfile.TarInfo(name=source_file)
                 info.size = len(code_bytes)
                 tar.addfile(info, io.BytesIO(code_bytes))
+                # Input data
+                input_bytes = input_json.encode('utf-8')
+                info2 = tarfile.TarInfo(name=input_file)
+                info2.size = len(input_bytes)
+                tar.addfile(info2, io.BytesIO(input_bytes))
             tar_stream.seek(0)
+
+            # Start container with sleep to keep it alive, then copy files and exec
+            container = docker_client.containers.create(
+                image=self.image,
+                command="sleep 30",
+                mem_limit=f"{self.memory_limit_mb}m",
+                nano_cpus=1_000_000_000,  # 1 CPU
+                network_disabled=True,
+                read_only=False,
+                user="nobody",
+                working_dir="/workspace",
+                stdin_open=False,
+                detach=True,
+                environment={"PYTHONDONTWRITEBYTECODE": "1"},
+            )
+            container.start()
+
+            # Copy source code and input data into container
             container.put_archive("/workspace", tar_stream)
 
-            # Execute
+            # Execute the command
             exec_result = container.exec_run(
                 full_cmd,
                 demux=True,
             )
-
-            # Wait for container to finish
-            result = container.wait(timeout=timeout_s)
             end_time = time.time()
 
             time_used_ms = int((end_time - start_time) * 1000)
 
-            # Get logs
-            stdout = container.logs(stdout=True, stderr=False).decode('utf-8', errors='replace')
-            stderr = container.logs(stdout=False, stderr=True).decode('utf-8', errors='replace')
+            stdout, stderr = exec_result.output
+            stdout = stdout.decode('utf-8', errors='replace') if stdout else ""
+            stderr = stderr.decode('utf-8', errors='replace') if stderr else ""
+            exit_code = exec_result.exit_code
 
             # Get memory usage stats
             try:
@@ -144,8 +148,6 @@ class DockerExecutor:
 
             # Cleanup container
             container.remove(force=True)
-
-            exit_code = result.get("StatusCode", -1)
 
             # Check time limit
             if time_used_ms > self.time_limit_ms:

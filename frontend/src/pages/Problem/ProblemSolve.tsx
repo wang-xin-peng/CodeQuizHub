@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
-import { useParams } from 'react-router-dom';
-import { Button, Select, Space, Spin, Tabs, Tag, Typography, message } from 'antd';
+import { useParams, useNavigate } from 'react-router-dom';
+import { Button, Input, Modal, Select, Space, Spin, Tabs, Tag, Typography, message, Card } from 'antd';
 import { PlayCircleOutlined, SendOutlined, UndoOutlined } from '@ant-design/icons';
 import { useDebouncedCallback } from 'use-debounce';
 import ReactMarkdown from 'react-markdown';
@@ -9,7 +9,9 @@ import CodeEditor from '../../components/CodeEditor/CodeEditor';
 import { useEditorStore } from '../../store/editorStore';
 import * as problemsApi from '../../api/problems';
 import * as submissionsApi from '../../api/submissions';
+import * as assignmentsApi from '../../api/assignments';
 import type { Problem, TestResultItem } from '../../types';
+import BackButton from '../../components/BackButton/BackButton';
 
 const { Title, Text } = Typography;
 
@@ -19,6 +21,17 @@ export default function ProblemSolve() {
   const [loading, setLoading] = useState(true);
   const [availableLanguages, setAvailableLanguages] = useState<string[]>([]);
   const [initialTemplate, setInitialTemplate] = useState('');
+
+  // Feature: problem navigation
+  const [assignmentProblems, setAssignmentProblems] = useState<string[]>([]);
+  const [currentProblemIndex, setCurrentProblemIndex] = useState(-1);
+
+  // Feature: custom test input
+  const [customInputOpen, setCustomInputOpen] = useState(false);
+  const [customInputJson, setCustomInputJson] = useState('{}');
+  const [customRunResult, setCustomRunResult] = useState<string | null>(null);
+  const [customRunError, setCustomRunError] = useState<string | null>(null);
+  const [customRunLoading, setCustomRunLoading] = useState(false);
 
   const {
     code, language, isRunning, isSubmitting, testResults, compileError,
@@ -60,6 +73,22 @@ export default function ProblemSolve() {
       .catch(() => {});
   }, [problemId, assignmentId, language]);
 
+  // Fetch assignment problems for navigation
+  useEffect(() => {
+    if (!assignmentId) return;
+    assignmentsApi.getAssignment(assignmentId)
+      .then((res) => {
+        const problems = res.data.problems || [];
+        const problemIds = problems
+          .sort((a, b) => a.order - b.order)
+          .map((p) => p.problem_id);
+        setAssignmentProblems(problemIds);
+        const idx = problemIds.indexOf(problemId || '');
+        setCurrentProblemIndex(idx);
+      })
+      .catch(() => {});
+  }, [assignmentId, problemId]);
+
   // Auto-save draft (debounced 3s)
   const debouncedSave = useDebouncedCallback((codeVal: string) => {
     if (!problemId || !assignmentId) return;
@@ -81,7 +110,6 @@ export default function ProblemSolve() {
     const sig = problem?.signatures?.find((s) => s.language === lang);
     if (sig) {
       setInitialTemplate(sig.code_template);
-      // Load draft for this language - if none, use template
       if (problemId && assignmentId) {
         submissionsApi.getDraft(problemId, { assignment_id: assignmentId, language: lang })
           .then((res) => {
@@ -120,6 +148,52 @@ export default function ProblemSolve() {
     }
   };
 
+  const navigate = useNavigate();
+
+  const handlePrevProblem = () => {
+    if (currentProblemIndex > 0) {
+      navigate(`/solve/${assignmentId}/${assignmentProblems[currentProblemIndex - 1]}`);
+    }
+  };
+
+  const handleNextProblem = () => {
+    if (currentProblemIndex < assignmentProblems.length - 1) {
+      navigate(`/solve/${assignmentId}/${assignmentProblems[currentProblemIndex + 1]}`);
+    }
+  };
+
+  const handleCustomRun = async () => {
+    if (!problemId || !assignmentId) return;
+    setCustomRunLoading(true);
+    setCustomRunResult(null);
+    setCustomRunError(null);
+    try {
+      let parsedInput: Record<string, unknown>;
+      try {
+        parsedInput = JSON.parse(customInputJson);
+      } catch {
+        message.error('自定义输入必须是有效的 JSON');
+        setCustomRunLoading(false);
+        return;
+      }
+      const res = await problemsApi.runCustomCode(problemId, {
+        language,
+        code,
+        assignment_id: assignmentId,
+        custom_input: parsedInput,
+      });
+      if (res.data.error) {
+        setCustomRunError(res.data.error);
+      } else {
+        setCustomRunResult(res.data.output);
+      }
+    } catch (err: any) {
+      message.error(err?.message || '自定义运行失败');
+    } finally {
+      setCustomRunLoading(false);
+    }
+  };
+
   const handleSubmit = async () => {
     if (!problemId || !assignmentId) return;
     setSubmitting(true);
@@ -130,51 +204,25 @@ export default function ProblemSolve() {
         language,
         code,
       });
-      message.success('提交成功，正在评测...');
-      // Poll for result
       const submissionId = res.data.submission_id;
-      pollResult(submissionId);
+      setSubmitting(false);
+      navigate(`/solve/${assignmentId}/${problemId}/submission/${submissionId}`);
     } catch (err: any) {
       message.error(err?.message || '提交失败');
       setSubmitting(false);
     }
   };
 
-  const pollResult = async (submissionId: string) => {
-    const maxAttempts = 30;
-    for (let i = 0; i < maxAttempts; i++) {
-      await new Promise((r) => setTimeout(r, 2000));
-      try {
-        const res = await submissionsApi.getSubmission(submissionId);
-        const s = res.data;
-        if (s.status !== 'pending' && s.status !== 'judging') {
-          setTestResults(s.results);
-          if (s.status === 'accepted') {
-            message.success(`通过! 得分: ${s.score}`);
-          } else {
-            message.warning(`结果: ${s.status}`);
-          }
-          setSubmitting(false);
-          return;
-        }
-      } catch {
-        break;
-      }
-    }
-    setSubmitting(false);
-    message.info('评测超时，请手动刷新查看结果');
-  };
-
   if (loading) return <Spin size="large" style={{ display: 'block', margin: '100px auto' }} />;
-  if (!problem) return <div>题目不存在</div>;
+  if (!problem) return <div className="empty-state">题目不存在</div>;
 
   const statusColors: Record<string, string> = {
-    accepted: 'green',
-    wrong_answer: 'red',
-    time_limit_exceeded: 'orange',
-    memory_limit_exceeded: 'orange',
-    runtime_error: 'red',
-    compilation_error: 'red',
+    accepted: 'success',
+    wrong_answer: 'error',
+    time_limit_exceeded: 'warning',
+    memory_limit_exceeded: 'warning',
+    runtime_error: 'error',
+    compilation_error: 'error',
   };
   const statusLabels: Record<string, string> = {
     accepted: 'AC',
@@ -186,48 +234,101 @@ export default function ProblemSolve() {
   };
 
   return (
-    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
-      {/* Top bar */}
-      <div style={{ padding: '8px 16px', background: '#001529', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Space>
-          <Title level={5} style={{ color: '#fff', margin: 0 }}>{problem.title}</Title>
-          <Tag color={problem.difficulty === 'easy' ? 'green' : problem.difficulty === 'medium' ? 'orange' : 'red'}>
-            {problem.difficulty === 'easy' ? '简单' : problem.difficulty === 'medium' ? '中等' : '困难'}
-          </Tag>
+    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: '#fafafa' }}>
+      {/* ── Navigation bar (only nav buttons) ── */}
+      <div className="solve-topbar">
+        <BackButton path={assignmentId ? `/assignments/${assignmentId}` : '/'} />
+        <Space size={8}>
+          <Button
+            size="small"
+            disabled={currentProblemIndex <= 0}
+            onClick={handlePrevProblem}
+            style={{ minWidth: 80 }}
+          >
+            ← 上一题
+          </Button>
+          <Button
+            size="small"
+            disabled={currentProblemIndex >= assignmentProblems.length - 1}
+            onClick={handleNextProblem}
+            style={{ minWidth: 80 }}
+          >
+            下一题 →
+          </Button>
         </Space>
-        <Space>
-          <Text style={{ color: '#ccc' }}>时间: {problem.time_limit}ms</Text>
-          <Text style={{ color: '#ccc' }}>内存: {problem.memory_limit}MB</Text>
-        </Space>
+        <Button
+          type="link"
+          size="small"
+          onClick={() => navigate(`/submissions/${assignmentId}/${problemId}`)}
+        >
+          提交历史
+        </Button>
       </div>
 
-      {/* Main content */}
+      {/* ── Problem info header ── */}
+      <div className="solve-problem-header">
+        <div className="solve-problem-title-row">
+          <span className="solve-problem-title">{problem?.title}</span>
+          <Tag
+            color={problem.difficulty === 'easy' ? 'green' : problem.difficulty === 'medium' ? 'warning' : 'red'}
+            style={{ borderRadius: 12, padding: '0 10px', fontSize: 12, lineHeight: '22px', margin: 0 }}
+          >
+            {problem.difficulty === 'easy' ? '简单' : problem.difficulty === 'medium' ? '中等' : '困难'}
+          </Tag>
+        </div>
+        <div className="solve-problem-meta">
+          <span>时间限制: {problem.time_limit}ms</span>
+          <span className="solve-meta-divider">|</span>
+          <span>内存限制: {problem.memory_limit}MB</span>
+        </div>
+      </div>
+
+      {/* ── Main content ── */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-        {/* Left panel: problem description */}
-        <div style={{ width: '40%', overflow: 'auto', padding: 16, borderRight: '1px solid #e8e8e8' }}>
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{problem.description}</ReactMarkdown>
+        {/* Left: problem description */}
+        <div className="solve-panel-description">
+          <div className="markdown-content">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{problem.description}</ReactMarkdown>
+          </div>
 
           {problem.test_cases && problem.test_cases.length > 0 && (
-            <div style={{ marginTop: 16 }}>
-              <Title level={5}>示例</Title>
+            <div style={{ marginTop: 28, paddingTop: 4 }}>
+              <Title level={5} style={{ marginBottom: 14, fontSize: 15, fontWeight: 600, color: '#171717' }}>示例</Title>
               {problem.test_cases.filter((tc) => tc.is_public).map((tc, idx) => (
-                <Card key={tc.id} size="small" style={{ marginBottom: 8 }}>
-                  <Text strong>示例 {idx + 1}:</Text>
-                  <pre style={{ background: '#f5f5f5', padding: 8, borderRadius: 4, marginTop: 4 }}>
-                    输入: {JSON.stringify(tc.input_params_json, null, 2)}{'\n'}
-                    输出: {JSON.stringify(tc.expected_output_json)}
-                  </pre>
-                  {tc.description && <Text type="secondary">{tc.description}</Text>}
+                <Card
+                  key={tc.id}
+                  size="small"
+                  style={{ marginBottom: 12, borderRadius: 8, border: '1px solid #e8e8e8' }}
+                  styles={{ body: { padding: '14px 16px' } }}
+                >
+                  <div style={{ marginBottom: 8 }}>
+                    <Text strong style={{ fontSize: 13, color: '#262626' }}>示例 {idx + 1}:</Text>
+                  </div>
+                  <div style={{ background: '#f8f9fa', borderRadius: 6, padding: '10px 14px', border: '1px solid #eee' }}>
+                    <div style={{ marginBottom: 10 }}>
+                      <Text type="secondary" style={{ fontSize: 11, fontFamily: 'ui-monospace, monospace', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>输入</Text>
+                      <pre className="solve-example-code">{JSON.stringify(tc.input_params_json, null, 2)}</pre>
+                    </div>
+                    <div>
+                      <Text type="secondary" style={{ fontSize: 11, fontFamily: 'ui-monospace, monospace', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>输出</Text>
+                      <pre className="solve-example-code">{typeof tc.expected_output_json === 'string' ? tc.expected_output_json : JSON.stringify(tc.expected_output_json, null, 2)}</pre>
+                    </div>
+                  </div>
+                  {tc.description && (
+                    <div style={{ marginTop: 8, padding: '0 2px' }}>
+                      <Text type="secondary" style={{ fontSize: 12 }}>{tc.description}</Text>
+                    </div>
+                  )}
                 </Card>
               ))}
             </div>
           )}
         </div>
 
-        {/* Right panel: editor + results */}
-        <div style={{ width: '60%', display: 'flex', flexDirection: 'column' }}>
+        {/* Right: editor + results */}
+        <div className="solve-panel-editor">
           {/* Language selector + reset */}
-          <div style={{ padding: '8px 16px', borderBottom: '1px solid #e8e8e8', display: 'flex', justifyContent: 'space-between' }}>
+          <div style={{ padding: '8px 16px', borderBottom: '1px solid #ebebeb', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Select
               value={language}
               onChange={handleLanguageChange}
@@ -243,7 +344,7 @@ export default function ProblemSolve() {
           </div>
 
           {/* Results panel */}
-          <div style={{ height: 200, overflow: 'auto', borderTop: '1px solid #e8e8e8', padding: 12 }}>
+          <div style={{ height: 200, overflow: 'auto', borderTop: '1px solid #ebebeb', padding: 12, background: '#ffffff' }}>
             <Tabs
               size="small"
               items={[
@@ -252,23 +353,98 @@ export default function ProblemSolve() {
                   label: '测试结果',
                   children: (
                     <div>
-                      {compileError && (
-                        <pre style={{ color: 'red', whiteSpace: 'pre-wrap' }}>{compileError}</pre>
-                      )}
-                      {testResults.map((r, idx) => (
-                        <div key={idx} style={{ marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <Tag color={statusColors[r.status] || 'default'}>
-                            {statusLabels[r.status] || r.status}
-                          </Tag>
-                          <Text>用例 {r.test_case_order + 1}</Text>
-                          {r.time_used != null && <Text type="secondary">{r.time_used}ms</Text>}
-                          {r.is_public && r.actual != null && (
-                            <Text type="secondary">输出: {JSON.stringify(r.actual)}</Text>
-                          )}
-                        </div>
-                      ))}
-                      {!compileError && testResults.length === 0 && (
+                      {compileError ? (
+                        <pre className="mono" style={{ color: '#ee0000', whiteSpace: 'pre-wrap' }}>{compileError}</pre>
+                      ) : testResults.length > 0 ? (() => {
+                        const total = testResults.length;
+                        const passed = testResults.filter(r => r.status === 'accepted').length;
+                        const firstError = testResults.find(r => r.status !== 'accepted');
+                        const isAccepted = passed === total;
+
+                        return (
+                          <div>
+                            {/* 总体状态 */}
+                            <div style={{
+                              display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12,
+                              padding: 12, borderRadius: 6,
+                              background: isAccepted ? '#f6ffed' : '#fff2f0',
+                              border: `1px solid ${isAccepted ? '#b7eb8f' : '#ffccc7'}`,
+                            }}>
+                              <span style={{
+                                fontSize: 20, fontWeight: 600,
+                                color: isAccepted ? '#52c41a' : '#ff4d4f',
+                              }}>
+                                {isAccepted ? '✓ 通过' : statusLabels[firstError?.status || ''] || firstError?.status}
+                              </span>
+                            </div>
+
+                            {/* 通过数/总数 */}
+                            <div style={{ marginBottom: 8, color: '#595959' }}>
+                              通过 <Text strong>{passed}</Text>/{total} 个测试用例
+                            </div>
+
+                            {/* 错误详情（首次失败的用例 — WA） */}
+                            {firstError && firstError.status === 'wrong_answer' && (
+                              <div style={{ marginTop: 12, padding: 8, background: '#fafafa', borderRadius: 4, fontSize: 13 }}>
+                                <div style={{ fontWeight: 500, marginBottom: 6 }}>
+                                  用例 {firstError.test_case_order + 1}
+                                </div>
+                                {firstError.input != null && (
+                                  <div style={{ marginBottom: 2 }}>
+                                    <Text type="secondary" style={{ fontSize: 12 }}>输入: </Text>
+                                    <code style={{ fontSize: 12 }}>{JSON.stringify(firstError.input)}</code>
+                                  </div>
+                                )}
+                                <div style={{ marginBottom: 2 }}>
+                                  <Text type="secondary" style={{ fontSize: 12 }}>输出: </Text>
+                                  <code style={{ fontSize: 12, color: '#cf1322' }}>{JSON.stringify(firstError.actual)}</code>
+                                </div>
+                                <div style={{ marginBottom: 2 }}>
+                                  <Text type="secondary" style={{ fontSize: 12 }}>预期: </Text>
+                                  <code style={{ fontSize: 12, color: '#52c41a' }}>{JSON.stringify(firstError.expected)}</code>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* 运行错误详情 */}
+                            {firstError && firstError.status === 'runtime_error' && firstError.actual && (
+                              <pre className="mono" style={{
+                                marginTop: 8, padding: 8, borderRadius: 4,
+                                background: '#fff2f0', border: '1px solid #ffccc7',
+                                color: '#cf1322', whiteSpace: 'pre-wrap', fontSize: 12,
+                              }}>用例 {firstError.test_case_order + 1} 运行错误:
+{typeof firstError.actual === 'string' ? firstError.actual : JSON.stringify(firstError.actual)}</pre>
+                            )}
+
+                            {/* TLE / MLE */}
+                            {firstError && (firstError.status === 'time_limit_exceeded' || firstError.status === 'memory_limit_exceeded') && (
+                              <div style={{ marginTop: 8, color: '#d48806' }}>
+                                用例 {firstError.test_case_order + 1} {firstError.status === 'time_limit_exceeded' ? '超出时间限制' : '超出内存限制'}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })() : (
                         <Text type="secondary">点击"运行测试"查看结果</Text>
+                      )}
+                    </div>
+                  ),
+                },
+                {
+                  key: 'custom',
+                  label: '自定义输入',
+                  children: (
+                    <div>
+                      {customRunError && (
+                        <pre className="mono" style={{ color: '#ee0000', whiteSpace: 'pre-wrap' }}>{customRunError}</pre>
+                      )}
+                      {customRunResult && (
+                        <pre className="mono" style={{ background: '#f5f5f5', padding: 8, borderRadius: 4, whiteSpace: 'pre-wrap' }}>
+                          {customRunResult}
+                        </pre>
+                      )}
+                      {!customRunResult && !customRunError && (
+                        <Text type="secondary">点击底部"自定义运行"按钮运行自定义测试</Text>
                       )}
                     </div>
                   ),
@@ -278,21 +454,64 @@ export default function ProblemSolve() {
           </div>
 
           {/* Bottom action bar */}
-          <div style={{ padding: '8px 16px', borderTop: '1px solid #e8e8e8', display: 'flex', justifyContent: 'space-between' }}>
-            <Button icon={<PlayCircleOutlined />} onClick={handleRun} loading={isRunning}>
-              运行测试
-            </Button>
+          <div style={{ padding: '8px 16px', borderTop: '1px solid #ebebeb', display: 'flex', justifyContent: 'space-between', background: '#ffffff' }}>
+            <Space>
+              <Button icon={<PlayCircleOutlined />} onClick={handleRun} loading={isRunning}>
+                运行测试
+              </Button>
+              <Button onClick={() => setCustomInputOpen(true)}>
+                自定义运行
+              </Button>
+            </Space>
             <Button type="primary" icon={<SendOutlined />} onClick={handleSubmit} loading={isSubmitting}>
               提交
             </Button>
           </div>
         </div>
       </div>
+
+      {/* Custom test input modal */}
+      <Modal
+        title="自定义测试输入"
+        open={customInputOpen}
+        onCancel={() => setCustomInputOpen(false)}
+        footer={null}
+      >
+        <div style={{ marginBottom: 8 }}>
+          <Text strong>JSON 输入:</Text>
+        </div>
+        <Input.TextArea
+          rows={4}
+          value={customInputJson}
+          onChange={(e) => setCustomInputJson(e.target.value)}
+          placeholder='{"key": "value"}'
+          style={{ fontFamily: 'monospace' }}
+        />
+        <div style={{ marginTop: 12, marginBottom: 12 }}>
+          <Button type="primary" onClick={handleCustomRun} loading={customRunLoading}>
+            运行
+          </Button>
+        </div>
+        {(customRunResult !== null || customRunError !== null) && (
+          <div>
+            <div style={{ marginBottom: 4 }}>
+              <Text strong>{customRunError ? '错误' : '输出'}:</Text>
+            </div>
+            <pre
+              style={{
+                background: '#f5f5f5',
+                padding: 8,
+                borderRadius: 4,
+                fontFamily: 'monospace',
+                whiteSpace: 'pre-wrap',
+                color: customRunError ? '#ee0000' : undefined,
+              }}
+            >
+              {customRunError || customRunResult}
+            </pre>
+          </div>
+        )}
+      </Modal>
     </div>
   );
-}
-
-// Simple Card component inline (to avoid importing from antd where it's used minimally in the markdown section)
-function Card({ children, size, style }: { children: React.ReactNode; size?: string; style?: React.CSSProperties }) {
-  return <div style={{ border: '1px solid #e8e8e8', borderRadius: 4, padding: size === 'small' ? 8 : 16, ...style }}>{children}</div>;
 }

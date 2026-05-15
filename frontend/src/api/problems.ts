@@ -59,3 +59,10 @@ export async function getSignature(
 ): Promise<ApiResponse<{ code_template: string; prelude_code?: string }>> {
   return client.get(`/problems/${problemId}/signatures/${language}`);
 }
+
+export async function runCustomCode(
+  problemId: string,
+  data: { language: string; code: string; assignment_id: string; custom_input: Record<string, unknown> }
+): Promise<ApiResponse<{ output: string; error: string | null }>> {
+  return client.post(`/problems/${problemId}/run-custom`, data);
+}

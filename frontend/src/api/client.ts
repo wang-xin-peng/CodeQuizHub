@@ -30,9 +30,15 @@ client.interceptors.response.use(
         window.location.href = '/login';
       }
 
+      // Extract error message: support both custom format (code/message) and FastAPI 422 (detail[])
+      let message = data?.message || '请求失败';
+      if (!data?.message && data?.detail && Array.isArray(data.detail)) {
+        message = data.detail.map((d: { msg: string }) => d.msg.replace(/^Value error,\s*/, '')).join('; ');
+      }
+
       return Promise.reject({
         code: data?.code || 'UNKNOWN_ERROR',
-        message: data?.message || '请求失败',
+        message,
         status,
       });
     }

@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { Card, Form, Input, Button, Typography, message, Descriptions } from 'antd';
 import { useAuthStore } from '../../store/authStore';
 import * as authApi from '../../api/auth';
+import BackButton from '../../components/BackButton/BackButton';
 
-const { Title } = Typography;
+const { Title, Text } = Typography;
 
 export default function Profile() {
   const { user, setUser } = useAuthStore();
@@ -38,23 +39,36 @@ export default function Profile() {
 
   return (
     <div style={{ maxWidth: 600 }}>
-      <Title level={4}>个人信息</Title>
+      <Title level={4} style={{ marginBottom: 24 }}>个人信息</Title>
+      <BackButton path="/" />
       <Card>
         {!editing ? (
           <>
-            <Descriptions column={1} bordered>
-              <Descriptions.Item label="用户名">{user?.username}</Descriptions.Item>
-              <Descriptions.Item label="邮箱">{user?.email}</Descriptions.Item>
-              <Descriptions.Item label="角色">
-                {user?.role === 'admin' ? '管理员' : user?.role === 'teacher' ? '教师' : '学生'}
+            <Descriptions column={1} bordered size="small">
+              <Descriptions.Item label="用户名">
+                <Text>{user?.username}</Text>
               </Descriptions.Item>
-              <Descriptions.Item label="昵称">{user?.nickname || '未设置'}</Descriptions.Item>
-              <Descriptions.Item label="头像链接">{user?.avatar_url || '未设置'}</Descriptions.Item>
+              <Descriptions.Item label="邮箱">
+                <Text>{user?.email}</Text>
+              </Descriptions.Item>
+              <Descriptions.Item label="角色">
+                <Text>
+                  {user?.role === 'admin'
+                    ? '管理员'
+                    : user?.role === 'teacher'
+                      ? '教师'
+                      : '学生'}
+                </Text>
+              </Descriptions.Item>
+              <Descriptions.Item label="昵称">
+                <Text>{user?.nickname || <Text type="secondary">未设置</Text>}</Text>
+              </Descriptions.Item>
+              <Descriptions.Item label="头像链接">
+                <Text>{user?.avatar_url || <Text type="secondary">未设置</Text>}</Text>
+              </Descriptions.Item>
             </Descriptions>
             <div style={{ marginTop: 16 }}>
-              <Button type="primary" onClick={handleEdit}>
-                编辑信息
-              </Button>
+              <Button type="primary" onClick={handleEdit}>编辑信息</Button>
             </div>
           </>
         ) : (

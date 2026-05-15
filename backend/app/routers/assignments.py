@@ -45,15 +45,19 @@ async def create_assignment(
     if not course_result.scalar_one_or_none():
         raise NotFoundError("course", body.course_id)
 
-    if body.end_time <= body.start_time:
+    # Convert to UTC, then strip tzinfo for TIMESTAMP WITHOUT TIME ZONE columns
+    start_time = body.start_time.astimezone(timezone.utc).replace(tzinfo=None) if body.start_time.tzinfo else body.start_time
+    end_time = body.end_time.astimezone(timezone.utc).replace(tzinfo=None) if body.end_time.tzinfo else body.end_time
+
+    if end_time <= start_time:
         raise BusinessError(ErrorCode.VALIDATION_INVALID_FORMAT, "结束时间必须晚于开始时间")
 
     assignment = Assignment(
         course_id=cid,
         title=body.title,
         description=body.description,
-        start_time=body.start_time,
-        end_time=body.end_time,
+        start_time=start_time,
+        end_time=end_time,
         status="draft",
     )
     db.add(assignment)
@@ -134,9 +138,9 @@ async def update_assignment(
     if body.description is not None:
         assignment.description = body.description
     if body.start_time is not None:
-        assignment.start_time = body.start_time
+        assignment.start_time = body.start_time.astimezone(timezone.utc).replace(tzinfo=None) if body.start_time.tzinfo else body.start_time
     if body.end_time is not None:
-        assignment.end_time = body.end_time
+        assignment.end_time = body.end_time.astimezone(timezone.utc).replace(tzinfo=None) if body.end_time.tzinfo else body.end_time
     if body.status is not None:
         if body.status not in ("draft", "published", "closed"):
             raise BusinessError(ErrorCode.VALIDATION_INVALID_FORMAT, "无效的作业状态")

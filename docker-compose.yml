@@ -1,6 +1,5 @@
-version: "3.8"
-
 services:
+  # ── Database ──
   db:
     image: postgres:16
     environment:
@@ -16,21 +15,25 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
 
+  # ── Redis ──
   redis:
     image: redis:7-alpine
-    ports:
-      - "6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 5
+    restart: unless-stopped
 
+  # ── Backend API (hot-reload: code changes take effect immediately) ──
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    volumes:
+      - ./backend:/app
     ports:
       - "8000:8000"
     environment:
@@ -39,6 +42,7 @@ services:
       - JWT_SECRET=${JWT_SECRET:-dev-secret-key-change-in-production-min-32-chars}
       - CORS_ORIGINS=["http://localhost:5173","http://localhost:3000"]
       - DEBUG=${DEBUG:-false}
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     depends_on:
       db:
         condition: service_healthy
@@ -46,6 +50,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # ── Judge Worker ──
   judge-worker:
     build:
       context: ./judge
@@ -62,14 +67,55 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # ── Frontend (Dev: hot-reload via Vite) ──
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
+    image: node:22-alpine
+    working_dir: /app
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
     ports:
-      - "3000:80"
+      - "5173:5173"
+    environment:
+      - VITE_API_PROXY=http://backend:8000
+      - VITE_WS_PROXY=ws://backend:8000
+      - VITE_USE_POLLING=true
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 5173"
     depends_on:
       - backend
+
+  # ── Sandbox Images (build targets, not long-running services) ──
+  sandbox-python:
+    build:
+      context: ./judge/sandbox
+      dockerfile: Dockerfile.python
+    image: codequizhub-sandbox-python
+    profiles: ["sandbox"]
+    restart: "no"
+
+  sandbox-java:
+    build:
+      context: ./judge/sandbox
+      dockerfile: Dockerfile.java
+    image: codequizhub-sandbox-java
+    profiles: ["sandbox"]
+    restart: "no"
+
+  sandbox-c:
+    build:
+      context: ./judge/sandbox
+      dockerfile: Dockerfile.c
+    image: codequizhub-sandbox-c
+    profiles: ["sandbox"]
+    restart: "no"
+
+  sandbox-cpp:
+    build:
+      context: ./judge/sandbox
+      dockerfile: Dockerfile.cpp
+    image: codequizhub-sandbox-cpp
+    profiles: ["sandbox"]
+    restart: "no"
 
 volumes:
   pgdata:

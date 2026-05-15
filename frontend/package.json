@@ -14,10 +14,13 @@
     "@monaco-editor/react": "^4.7.0",
     "antd": "^6.4.1",
     "axios": "^1.16.1",
+    "decimal.js": "^10.6.0",
+    "frontend": "file:",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "react-markdown": "^10.1.0",
     "react-router-dom": "^7.15.0",
+    "recharts": "^3.8.1",
     "remark-gfm": "^4.0.1",
     "use-debounce": "^10.1.1",
     "zustand": "^5.0.13"

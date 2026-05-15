@@ -2,7 +2,10 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Card, Form, Input, InputNumber, Select, Tabs, Typography, message, Space, Switch } from 'antd';
 import { MinusCircleOutlined, PlusOutlined } from '@ant-design/icons';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import * as problemsApi from '../../api/problems';
+import BackButton from '../../components/BackButton/BackButton';
 
 const { Title } = Typography;
 const { TextArea } = Input;
@@ -11,6 +14,7 @@ export default function ProblemCreate() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const [form] = Form.useForm();
+  const watchedDescription = Form.useWatch('description', form);
 
   const onFinish = async (values: any) => {
     setLoading(true);
@@ -52,13 +56,22 @@ export default function ProblemCreate() {
   return (
     <div>
       <Title level={4}>创建题目</Title>
+      <BackButton path="/problems" />
       <Form form={form} layout="vertical" onFinish={onFinish} initialValues={{ difficulty: 'medium', time_limit: 1000, memory_limit: 256, compare_mode: 'exact' }}>
         <Card title="基本信息" style={{ marginBottom: 16 }}>
           <Form.Item name="title" label="题目标题" rules={[{ required: true }]}>
             <Input placeholder="如: 两数之和" />
           </Form.Item>
           <Form.Item name="description" label="题目描述 (Markdown)" rules={[{ required: true }]}>
-            <TextArea rows={8} placeholder="支持 Markdown 格式" />
+            <div style={{ display: 'flex', gap: 16 }}>
+              <div style={{ flex: 1 }}>
+                <TextArea rows={8} placeholder="支持 Markdown 格式" />
+              </div>
+              <div style={{ flex: 1, border: '1px solid #d9d9d9', borderRadius: 6, padding: 12, minHeight: 200, overflow: 'auto' }}>
+                <Typography.Text strong style={{ marginBottom: 8, display: 'block' }}>预览</Typography.Text>
+                {watchedDescription ? <ReactMarkdown remarkPlugins={[remarkGfm]}>{watchedDescription}</ReactMarkdown> : <span style={{ color: '#999' }}>输入 Markdown 后在此预览</span>}
+              </div>
+            </div>
           </Form.Item>
           <Space>
             <Form.Item name="difficulty" label="难度">
@@ -107,11 +120,15 @@ export default function ProblemCreate() {
                         <Form.Item name={[field.name, 'code_template']} label="代码模板" rules={[{ required: true }]}>
                           <TextArea rows={6} placeholder="学生看到的初始代码" />
                         </Form.Item>
-                        <Form.Item name={[field.name, 'prelude_code']} label="Prelude 代码">
-                          <TextArea rows={3} placeholder="预置代码（数据结构等）" />
+                        <Form.Item name={[field.name, 'prelude_code']} label="Prelude 代码"
+                          tooltip="定义题目需要但学生不应手写的数据结构（如 ListNode、TreeNode）。简单题目（如只涉及基本类型 List[int]、int）不需要填，系统会自动处理。"
+                        >
+                          <TextArea rows={3} placeholder="预置代码（数据结构等），简单题可留空" />
                         </Form.Item>
-                        <Form.Item name={[field.name, 'driver_template']} label="Driver 模板">
-                          <TextArea rows={4} placeholder="驱动代码模板" />
+                        <Form.Item name={[field.name, 'driver_template']} label="Driver 模板"
+                          tooltip="控制如何把 JSON 测试用例解包后调用学生函数并输出结果。对于 List[int]、int 等标准类型系统会自动生成，不需要填。只有当参数类型复杂（如嵌套 JSON、树结构）时才需要自定义。"
+                        >
+                          <TextArea rows={4} placeholder="驱动代码模板，标准类型可留空，系统自动生成" />
                         </Form.Item>
                         <Form.List name={[field.name, 'parameters']}>
                           {(paramFields, { add: addParam, remove: removeParam }) => (

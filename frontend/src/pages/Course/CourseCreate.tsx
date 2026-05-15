@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Card, Form, Input, Select, Typography, message } from 'antd';
+import { Button, Card, Form, Input, Select, Space, Typography, message } from 'antd';
 import * as coursesApi from '../../api/courses';
+import BackButton from '../../components/BackButton/BackButton';
 
 const { Title } = Typography;
 const { TextArea } = Input;
@@ -32,7 +33,8 @@ export default function CourseCreate() {
 
   return (
     <div>
-      <Title level={4}>创建课程</Title>
+      <Title level={4} style={{ marginBottom: 24 }}>创建课程</Title>
+      <BackButton path="/courses" />
       <Card style={{ maxWidth: 600 }}>
         <Form layout="vertical" onFinish={onFinish}>
           <Form.Item name="name" label="课程名称" rules={[{ required: true, message: '请输入课程名称' }]}>
@@ -45,12 +47,12 @@ export default function CourseCreate() {
             <Select mode="multiple" options={languageOptions} placeholder="选择编程语言" />
           </Form.Item>
           <Form.Item>
-            <Button type="primary" htmlType="submit" loading={loading}>
-              创建
-            </Button>
-            <Button style={{ marginLeft: 8 }} onClick={() => navigate('/courses')}>
-              取消
-            </Button>
+            <Space>
+              <Button type="primary" htmlType="submit" loading={loading}>
+                创建
+              </Button>
+              <Button onClick={() => navigate('/courses')}>取消</Button>
+            </Space>
           </Form.Item>
         </Form>
       </Card>

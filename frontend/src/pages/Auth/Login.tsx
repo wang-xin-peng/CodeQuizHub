@@ -4,7 +4,7 @@ import { Form, Input, Button, Card, message, Typography } from 'antd';
 import { LockOutlined, MailOutlined } from '@ant-design/icons';
 import { useAuthStore } from '../../store/authStore';
 
-const { Title } = Typography;
+const { Title, Text } = Typography;
 
 export default function Login() {
   const [loading, setLoading] = useState(false);
@@ -25,13 +25,27 @@ export default function Login() {
   };
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f0f2f5' }}>
+    <div
+      style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: '#fafafa',
+      }}
+    >
       <Card style={{ width: 400 }}>
-        <Title level={3} style={{ textAlign: 'center', marginBottom: 32 }}>
+        <Title level={3} style={{ textAlign: 'center', marginBottom: 32, letterSpacing: '-0.96px' }}>
           CodeQuizHub
         </Title>
         <Form onFinish={onFinish} size="large">
-          <Form.Item name="email" rules={[{ required: true, message: '请输入邮箱' }, { type: 'email', message: '邮箱格式不正确' }]}>
+          <Form.Item
+            name="email"
+            rules={[
+              { required: true, message: '请输入邮箱' },
+              { type: 'email', message: '邮箱格式不正确' },
+            ]}
+          >
             <Input prefix={<MailOutlined />} placeholder="邮箱" />
           </Form.Item>
           <Form.Item name="password" rules={[{ required: true, message: '请输入密码' }]}>
@@ -43,7 +57,8 @@ export default function Login() {
             </Button>
           </Form.Item>
           <div style={{ textAlign: 'center' }}>
-            还没有账号？<Link to="/register">立即注册</Link>
+            <Text type="secondary">还没有账号？</Text>
+            <Link to="/register">立即注册</Link>
           </div>
         </Form>
       </Card>

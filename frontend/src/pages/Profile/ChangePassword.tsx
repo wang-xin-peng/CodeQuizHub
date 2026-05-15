@@ -3,6 +3,7 @@ import { Card, Form, Input, Button, Typography, message } from 'antd';
 import { LockOutlined } from '@ant-design/icons';
 import * as authApi from '../../api/auth';
 import { useNavigate } from 'react-router-dom';
+import BackButton from '../../components/BackButton/BackButton';
 
 const { Title } = Typography;
 
@@ -30,7 +31,8 @@ export default function ChangePassword() {
 
   return (
     <div style={{ maxWidth: 500 }}>
-      <Title level={4}>修改密码</Title>
+      <Title level={4} style={{ marginBottom: 24 }}>修改密码</Title>
+      <BackButton path="/profile" />
       <Card>
         <Form form={form} layout="vertical" onFinish={onFinish}>
           <Form.Item
@@ -52,7 +54,10 @@ export default function ChangePassword() {
               },
             ]}
           >
-            <Input.Password prefix={<LockOutlined />} placeholder="新密码（至少8位，含大小写字母和数字）" />
+            <Input.Password
+              prefix={<LockOutlined />}
+              placeholder="新密码（至少8位，含大小写字母和数字）"
+            />
           </Form.Item>
           <Form.Item
             label="确认新密码"

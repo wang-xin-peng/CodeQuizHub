@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Button, Card, DatePicker, Form, Input, Select, Typography, message } from 'antd';
+import { Button, Card, DatePicker, Form, Input, Select, Space, Typography, message } from 'antd';
 import * as assignmentsApi from '../../api/assignments';
 import * as problemsApi from '../../api/problems';
 import type { Problem } from '../../types';
+import BackButton from '../../components/BackButton/BackButton';
 
 const { Title } = Typography;
 const { TextArea } = Input;
@@ -17,9 +18,9 @@ export default function AssignmentCreate() {
   const courseId = searchParams.get('courseId') || '';
 
   useEffect(() => {
-    problemsApi.getProblems({ page: 1, page_size: 200 })
+    problemsApi.getProblems({ page: 1, page_size: 100 })
       .then((res) => setProblems(res.data.items))
-      .catch(() => {});
+      .catch(() => message.error('获取题目列表失败'));
   }, []);
 
   const onFinish = async (values: any) => {
@@ -45,7 +46,8 @@ export default function AssignmentCreate() {
 
   return (
     <div>
-      <Title level={4}>发布作业</Title>
+      <Title level={4} style={{ marginBottom: 24 }}>发布作业</Title>
+      <BackButton path={courseId ? `/courses/${courseId}` : '/courses'} />
       <Card style={{ maxWidth: 700 }}>
         <Form layout="vertical" onFinish={onFinish}>
           <Form.Item name="title" label="作业标题" rules={[{ required: true }]}>
@@ -65,8 +67,10 @@ export default function AssignmentCreate() {
             />
           </Form.Item>
           <Form.Item>
-            <Button type="primary" htmlType="submit" loading={loading}>发布</Button>
-            <Button style={{ marginLeft: 8 }} onClick={() => navigate(-1)}>取消</Button>
+            <Space>
+              <Button type="primary" htmlType="submit" loading={loading}>发布</Button>
+              <Button onClick={() => navigate(-1)}>取消</Button>
+            </Space>
           </Form.Item>
         </Form>
       </Card>

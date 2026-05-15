@@ -73,8 +73,6 @@ async def save_submission_result(pool, submission_id: str, test_case_id: str,
             """
             INSERT INTO submission_results (id, submission_id, test_case_id, status, actual_output, time_used, memory_used)
             VALUES (gen_random_uuid(), $1::uuid, $2::uuid, $3, $4, $5, $6)
-            ON CONFLICT (submission_id, test_case_id) DO UPDATE
-            SET status = $3, actual_output = $4, time_used = $5, memory_used = $6
             """,
             submission_id, test_case_id, status, actual_output, time_used, memory_used,
         )
@@ -93,10 +91,32 @@ async def get_problem_data(pool, problem_id: str) -> dict:
             'SELECT * FROM test_cases WHERE problem_id = $1::uuid ORDER BY "order"', problem_id
         )
 
+    def _parse_json(val):
+        """Parse JSON string to Python object if needed."""
+        if isinstance(val, str):
+            try:
+                return json.loads(val)
+            except (json.JSONDecodeError, TypeError):
+                return val
+        return val
+
     return {
         "problem": dict(problem) if problem else None,
-        "signatures": [dict(s) for s in signatures],
-        "test_cases": [dict(tc) for tc in test_cases],
+        "signatures": [
+            {
+                **dict(s),
+                "parameters_json": _parse_json(s["parameters_json"]),
+            }
+            for s in signatures
+        ],
+        "test_cases": [
+            {
+                **dict(tc),
+                "input_params_json": _parse_json(tc["input_params_json"]),
+                "expected_output_json": _parse_json(tc["expected_output_json"]),
+            }
+            for tc in test_cases
+        ],
     }
 
 
@@ -228,6 +248,44 @@ async def process_submission(task: dict, pool, redis_client):
 
 async def main():
     logger.info("Judge Worker starting...")
+    logger.info("=" * 40)
+
+    # ── Verify Docker connectivity ──
+    try:
+        import docker
+        client = docker.from_env()
+        client.ping()
+        client.close()
+        logger.info("  ✓ Docker daemon OK")
+    except Exception as e:
+        logger.critical(f"  ✗ Docker daemon FAILED: {e}")
+        logger.critical("  Judge worker cannot execute code without Docker.")
+        sys.exit(1)
+
+    # ── Verify database connectivity ──
+    try:
+        db_url = DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://")
+        pool = await asyncpg.create_pool(db_url, min_size=1, max_size=1)
+        async with pool.acquire() as conn:
+            await conn.execute("SELECT 1")
+        await pool.close()
+        logger.info("  ✓ Database connection OK")
+    except Exception as e:
+        logger.critical(f"  ✗ Database connection FAILED: {e}")
+        sys.exit(1)
+
+    # ── Verify Redis connectivity ──
+    try:
+        redis_client = aioredis.from_url(REDIS_URL, decode_responses=True)
+        await redis_client.ping()
+        logger.info("  ✓ Redis connection OK")
+    except Exception as e:
+        logger.critical(f"  ✗ Redis connection FAILED: {e}")
+        sys.exit(1)
+
+    await redis_client.close()
+
+    logger.info("=" * 40)
 
     pool = await get_db_pool()
     redis_client = aioredis.from_url(REDIS_URL, decode_responses=True)

@@ -10,6 +10,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
+from app.core.cache import cache_delete
 from app.core.error_codes import ErrorCode
 from app.core.errors import BusinessError, NotFoundError
 from app.database import get_db
@@ -26,6 +27,11 @@ settings = get_settings()
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+async def _invalidate_grade_cache(course_id: str):
+    """Invalidate grade overview cache for a course."""
+    await cache_delete(f"grades:course:{course_id}")
 
 
 async def get_redis():
@@ -114,6 +120,10 @@ async def submit_code(
     await db.flush()
     await db.refresh(submission)
 
+    # Invalidate grade cache for this course (fire-and-forget)
+    course_id = assignment.course_id
+    asyncio.create_task(_invalidate_grade_cache(str(course_id)))
+
     # Push to Redis judge queue (fire-and-forget)
     asyncio.create_task(
         push_to_judge_queue(
@@ -156,6 +166,7 @@ async def get_submission(
         "problem_id": str(submission.problem_id),
         "assignment_id": str(submission.assignment_id),
         "language": submission.language,
+        "code": submission.code,
         "status": submission.status,
         "score": submission.score,
         "time_used": submission.time_used,

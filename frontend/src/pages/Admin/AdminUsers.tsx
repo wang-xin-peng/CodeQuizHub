@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button, Select, Table, Tag, Typography, message, Popconfirm } from 'antd';
 import client from '../../api/client';
 import type { User } from '../../types';
+import BackButton from '../../components/BackButton/BackButton';
 
 const { Title } = Typography;
 
@@ -73,14 +75,17 @@ export default function AdminUsers() {
       dataIndex: 'is_active',
       key: 'is_active',
       render: (active: boolean) => (
-        <Tag color={active ? 'green' : 'red'}>{active ? '正常' : '禁用'}</Tag>
+        <Tag color={active ? 'success' : 'error'}>{active ? '正常' : '禁用'}</Tag>
       ),
     },
     {
       title: '操作',
       key: 'action',
       render: (_: any, record: User) => (
-        <Popconfirm title={`确认${record.is_active ? '禁用' : '启用'}?`} onConfirm={() => handleToggleStatus(record.id, record.is_active)}>
+        <Popconfirm
+          title={`确认${record.is_active ? '禁用' : '启用'}?`}
+          onConfirm={() => handleToggleStatus(record.id, record.is_active)}
+        >
           <Button type="link" danger={record.is_active}>
             {record.is_active ? '禁用' : '启用'}
           </Button>
@@ -91,7 +96,8 @@ export default function AdminUsers() {
 
   return (
     <div>
-      <Title level={4}>用户管理</Title>
+      <BackButton path="/" />
+      <Title level={4} style={{ marginBottom: 24 }}>用户管理</Title>
       <Table
         dataSource={users}
         columns={columns}

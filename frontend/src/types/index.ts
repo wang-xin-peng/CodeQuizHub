@@ -86,6 +86,7 @@ export interface Submission {
   problem_id: string;
   assignment_id: string;
   language: string;
+  code?: string;
   status: string;
   score: number;
   time_used?: number;

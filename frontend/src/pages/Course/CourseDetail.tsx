@@ -5,8 +5,9 @@ import { useAuthStore } from '../../store/authStore';
 import * as coursesApi from '../../api/courses';
 import * as assignmentsApi from '../../api/assignments';
 import type { Assignment, Course } from '../../types';
+import BackButton from '../../components/BackButton/BackButton';
 
-const { Title } = Typography;
+const { Title, Text } = Typography;
 
 export default function CourseDetail() {
   const { id } = useParams<{ id: string }>();
@@ -48,6 +49,18 @@ export default function CourseDetail() {
     }
   };
 
+  const handlePublish = async (assignmentId: string) => {
+    try {
+      await assignmentsApi.updateAssignment(assignmentId, { status: 'published' });
+      message.success('作业已发布');
+      setAssignments((prev) =>
+        prev.map((a) => (a.id === assignmentId ? { ...a, status: 'published' } : a))
+      );
+    } catch (err: any) {
+      message.error(err?.message || '发布失败');
+    }
+  };
+
   if (!course) return null;
 
   const assignmentColumns = [
@@ -57,20 +70,33 @@ export default function CourseDetail() {
       dataIndex: 'status',
       key: 'status',
       render: (status: string) => {
-        const colors: Record<string, string> = { draft: 'default', published: 'green', closed: 'red' };
+        const colors: Record<string, string> = { draft: 'default', published: 'success', closed: 'error' };
         const labels: Record<string, string> = { draft: '草稿', published: '进行中', closed: '已关闭' };
         return <Tag color={colors[status]}>{labels[status] || status}</Tag>;
       },
     },
-    { title: '开始时间', dataIndex: 'start_time', key: 'start_time', render: (v: string) => new Date(v).toLocaleString() },
-    { title: '截止时间', dataIndex: 'end_time', key: 'end_time', render: (v: string) => new Date(v).toLocaleString() },
+    {
+      title: '开始时间',
+      dataIndex: 'start_time',
+      key: 'start_time',
+      render: (v: string) => v ? new Date(v).toLocaleString() : '-',
+    },
+    {
+      title: '截止时间',
+      dataIndex: 'end_time',
+      key: 'end_time',
+      render: (v: string) => v ? new Date(v).toLocaleString() : '-',
+    },
     {
       title: '操作',
       key: 'action',
       render: (_: any, record: Assignment) => (
-        <Button type="link" onClick={() => navigate(`/assignments/${record.id}`)}>
-          查看
-        </Button>
+        <span>
+          <Button type="link" onClick={() => navigate(`/assignments/${record.id}`)}>查看</Button>
+          {isTeacher && record.status === 'draft' && (
+            <Button type="link" style={{ color: 'green' }} onClick={() => handlePublish(record.id)}>发布</Button>
+          )}
+        </span>
       ),
     },
   ];
@@ -92,16 +118,24 @@ export default function CourseDetail() {
 
   return (
     <div>
-      <Title level={4}>{course.name}</Title>
-      <Card style={{ marginBottom: 16 }}>
-        <Descriptions>
-          <Descriptions.Item label="描述">{course.description || '无'}</Descriptions.Item>
-          <Descriptions.Item label="语言">
-            {course.languages.map((l) => <Tag key={l} color="blue">{l}</Tag>)}
+      <BackButton path="/courses" />
+      <Title level={4} style={{ marginBottom: 24 }}>{course.name}</Title>
+
+      <Card style={{ marginBottom: 24 }}>
+        <Descriptions column={{ xs: 1, sm: 2 }}>
+          <Descriptions.Item label="描述">
+            {course.description || <Text type="secondary">无</Text>}
           </Descriptions.Item>
-          <Descriptions.Item label="邀请码">{course.invite_code}</Descriptions.Item>
+          <Descriptions.Item label="语言">
+            {course.languages.map((l) => <Tag key={l}>{l}</Tag>)}
+          </Descriptions.Item>
+          <Descriptions.Item label="邀请码">
+            <code>{course.invite_code}</code>
+          </Descriptions.Item>
           <Descriptions.Item label="状态">
-            <Tag color={course.status === 'active' ? 'green' : 'default'}>{course.status}</Tag>
+            <Tag color={course.status === 'active' ? 'success' : 'default'}>
+              {course.status === 'active' ? '进行中' : '已归档'}
+            </Tag>
           </Descriptions.Item>
         </Descriptions>
       </Card>

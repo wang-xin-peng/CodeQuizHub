@@ -119,20 +119,11 @@ class TestChangePassword:
         assert response.status_code == 401
 
     @pytest.mark.asyncio
-    async def test_change_password_weak_new(self, client: AsyncClient, test_student):
+    async def test_change_password_too_short(self, client: AsyncClient, test_student):
         response = await client.put(
             "/api/users/me/password",
             headers=test_student["headers"],
             json={"old_password": "Test1234", "new_password": "weak"},
-        )
-        assert response.status_code == 422
-
-    @pytest.mark.asyncio
-    async def test_change_password_new_no_uppercase(self, client: AsyncClient, test_student):
-        response = await client.put(
-            "/api/users/me/password",
-            headers=test_student["headers"],
-            json={"old_password": "Test1234", "new_password": "newpass123"},
         )
         assert response.status_code == 422
 

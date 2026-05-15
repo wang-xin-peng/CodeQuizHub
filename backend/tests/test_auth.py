@@ -71,35 +71,6 @@ class TestRegister:
         assert response.status_code == 409
 
     @pytest.mark.asyncio
-    async def test_register_weak_password_no_uppercase(self, client: AsyncClient):
-        response = await client.post("/api/auth/register", json={
-            "username": "weakuser1",
-            "email": "weak1@example.com",
-            "password": "mypass123",
-            "role": "student",
-        })
-        assert response.status_code == 422
-
-    @pytest.mark.asyncio
-    async def test_register_weak_password_no_lowercase(self, client: AsyncClient):
-        response = await client.post("/api/auth/register", json={
-            "username": "weakuser2",
-            "email": "weak2@example.com",
-            "password": "MYPASS123",
-            "role": "student",
-        })
-        assert response.status_code == 422
-
-    @pytest.mark.asyncio
-    async def test_register_weak_password_no_digit(self, client: AsyncClient):
-        response = await client.post("/api/auth/register", json={
-            "username": "weakuser3",
-            "email": "weak3@example.com",
-            "password": "MyPassNoDigit",
-            "role": "student",
-        })
-        assert response.status_code == 422
-
     @pytest.mark.asyncio
     async def test_register_password_too_short(self, client: AsyncClient):
         response = await client.post("/api/auth/register", json={

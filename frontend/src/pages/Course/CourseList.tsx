@@ -6,7 +6,7 @@ import { useAuthStore } from '../../store/authStore';
 import * as coursesApi from '../../api/courses';
 import type { Course } from '../../types';
 
-const { Title } = Typography;
+const { Title, Text } = Typography;
 
 export default function CourseList() {
   const { user } = useAuthStore();
@@ -49,7 +49,7 @@ export default function CourseList() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+      <div className="page-header">
         <Title level={4} style={{ margin: 0 }}>课程列表</Title>
         <Space>
           {!isTeacher && (
@@ -65,24 +65,36 @@ export default function CourseList() {
 
       <List
         loading={loading}
-        grid={{ gutter: 16, column: 3 }}
+        grid={{ gutter: [24, 24], xs: 1, sm: 1, md: 2, lg: 3 }}
         dataSource={courses}
         renderItem={(course) => (
           <List.Item>
             <Card
               hoverable
               onClick={() => navigate(`/courses/${course.id}`)}
-              title={course.name}
-              extra={<Tag color={course.status === 'active' ? 'green' : 'default'}>{course.status === 'active' ? '进行中' : '已归档'}</Tag>}
+              title={
+                <Space>
+                  <Text strong style={{ fontSize: 16 }}>{course.name}</Text>
+                  <Tag color={course.status === 'active' ? 'success' : 'default'}>
+                    {course.status === 'active' ? '进行中' : '已归档'}
+                  </Tag>
+                </Space>
+              }
             >
-              <p>{course.description || '暂无描述'}</p>
-              <Space>
+              <Text type="secondary" style={{ display: 'block', marginBottom: 12 }}>
+                {course.description || '暂无描述'}
+              </Text>
+              <Space size={4}>
                 {course.languages.map((lang) => (
-                  <Tag key={lang} color="blue">{lang}</Tag>
+                  <Tag key={lang}>{lang}</Tag>
                 ))}
               </Space>
               {isTeacher && (
-                <p style={{ marginTop: 8, color: '#999' }}>邀请码: {course.invite_code}</p>
+                <div style={{ marginTop: 12 }}>
+                  <Text type="secondary" style={{ fontSize: 12 }}>
+                    邀请码: <code>{course.invite_code}</code>
+                  </Text>
+                </div>
               )}
             </Card>
           </List.Item>

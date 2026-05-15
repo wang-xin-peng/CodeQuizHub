@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Card, Col, Row, Statistic, Typography } from 'antd';
-import { BookOutlined, CodeOutlined, FileTextOutlined } from '@ant-design/icons';
+import { BookOutlined, UserOutlined, CheckCircleOutlined } from '@ant-design/icons';
 import { useAuthStore } from '../../store/authStore';
 import * as coursesApi from '../../api/courses';
 
@@ -18,23 +18,41 @@ export default function Dashboard() {
 
   return (
     <div>
-      <Title level={4}>
-        欢迎, {user?.nickname || user?.username}
+      <Title level={4} style={{ marginBottom: 24 }}>
+        欢迎回来, {user?.nickname || user?.username}
       </Title>
-      <Row gutter={16} style={{ marginTop: 24 }}>
-        <Col span={8}>
+      <Row gutter={[24, 24]}>
+        <Col xs={24} sm={12} lg={8}>
           <Card>
-            <Statistic title="我的课程" value={courseCount} prefix={<BookOutlined />} />
+            <Statistic
+              title="我的课程"
+              value={courseCount}
+              prefix={<BookOutlined style={{ color: '#4d4d4d' }} />}
+            />
           </Card>
         </Col>
-        <Col span={8}>
+        <Col xs={24} sm={12} lg={8}>
           <Card>
-            <Statistic title="角色" value={user?.role === 'teacher' ? '教师' : user?.role === 'admin' ? '管理员' : '学生'} prefix={<CodeOutlined />} />
+            <Statistic
+              title="角色"
+              value={
+                user?.role === 'teacher'
+                  ? '教师'
+                  : user?.role === 'admin'
+                    ? '管理员'
+                    : '学生'
+              }
+              prefix={<UserOutlined style={{ color: '#4d4d4d' }} />}
+            />
           </Card>
         </Col>
-        <Col span={8}>
+        <Col xs={24} sm={12} lg={8}>
           <Card>
-            <Statistic title="状态" value={user?.is_active ? '正常' : '禁用'} prefix={<FileTextOutlined />} />
+            <Statistic
+              title="状态"
+              value={user?.is_active ? '正常' : '禁用'}
+              prefix={<CheckCircleOutlined style={{ color: user?.is_active ? '#0070f3' : '#ee0000' }} />}
+            />
           </Card>
         </Col>
       </Row>

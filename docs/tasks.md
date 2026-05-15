@@ -138,8 +138,8 @@
   - ✅ 基本信息表单（标题/描述/难度/标签）
   - ✅ 函数签名编辑器（多语言 Tab 切换）
   - ✅ 测试用例编辑器（公开/隐藏标记）
-  - ⬜ Markdown 实时预览
-- ⬜ 编辑题目页面
+  - ✅ Markdown 实时预览
+- ✅ 编辑题目页面
 - ⬜ 题目详情预览
 
 ---
@@ -151,7 +151,7 @@
 - ✅ GET /api/courses/:id/assignments — 获取课程下作业列表
 - ✅ GET /api/assignments/:id — 获取作业详情（含题目列表）
 - ✅ PUT /api/assignments/:id — 更新作业（编辑/发布/关闭）
-- ⬜ 作业状态自动管理（到期自动关闭）
+- ✅ 作业状态自动管理（到期自动关闭）
 - ✅ 单元测试：作业 CRUD
 
 ### 5.2 前端 - 作业页面
@@ -180,51 +180,51 @@
   - ✅ 代码模板预填充
   - ✅ 语言切换（自动加载对应模板）
 - ✅ 运行测试功能（调用 /run，展示用例结果对比）
-- ⬜ 自定义测试输入
+- ✅ 自定义测试输入
 - ✅ 提交功能（调用 /submissions，轮询/WebSocket 获取结果）
 - ✅ 测试结果展示面板（AC/WA/TLE/RE/CE 状态 + 详情）
-- ⬜ 提交历史列表
+- ✅ 提交历史列表
 - ✅ 代码自动保存（防抖 3 秒）
 - ✅ 代码重置按钮
-- ⬜ 题目切换（上一题/下一题）
+- ✅ 题目切换（上一题/下一题）
 
 ---
 
 ## 阶段七：判题服务
 
 ### 7.1 判题核心
-- ⬜ Redis 队列消费者（judge_worker.py）
-- ⬜ 代码组装器（assembler.py：Prelude + Solution + Driver）
-- ⬜ Docker 沙箱执行器（executor.py）
-  - ⬜ 容器创建与资源限制（CPU/内存/网络/文件系统）
-  - ⬜ 超时强制终止
-  - ⬜ 编译错误捕获
-  - ⬜ 运行时错误捕获
-- ⬜ 结果比对器（comparator.py）
-  - ⬜ 精确匹配
-  - ⬜ 无序匹配
-  - ⬜ 浮点精度匹配
-- ⬜ 评分计算与数据库更新
+- ✅ Redis 队列消费者（judge_worker.py）
+- ✅ 代码组装器（assembler.py：Prelude + Solution + Driver）
+- ✅ Docker 沙箱执行器（executor.py）
+  - ✅ 容器创建与资源限制（CPU/内存/网络/文件系统）
+  - ✅ 超时强制终止
+  - ✅ 编译错误捕获
+  - ✅ 运行时错误捕获
+- ✅ 结果比对器（comparator.py）
+  - ✅ 精确匹配
+  - ✅ 无序匹配
+  - ✅ 浮点精度匹配
+- ✅ 评分计算与数据库更新
 
 ### 7.2 多语言支持
-- ⬜ Python 语言配置（编译命令/运行命令/Docker 镜像）
-- ⬜ Java 语言配置
-- ⬜ C 语言配置
-- ⬜ C++ 语言配置
+- ✅ Python 语言配置（编译命令/运行命令/Docker 镜像）
+- ✅ Java 语言配置
+- ✅ C 语言配置
+- ✅ C++ 语言配置
 
 ### 7.3 预置代码
-- ⬜ Python prelude（ListNode / TreeNode 等）
-- ⬜ Java prelude
-- ⬜ C prelude
-- ⬜ C++ prelude
+- ✅ Python prelude（ListNode / TreeNode 等）
+- ✅ Java prelude
+- ✅ C prelude
+- ✅ C++ prelude
 
 ### 7.4 判题服务 Docker 化
-- ⬜ 各语言沙箱 Dockerfile
-- ⬜ 判题 Worker Dockerfile
-- ⬜ 集成到 docker-compose.yml
+- ✅ 各语言沙箱 Dockerfile（Python / Java / C / C++）
+- ✅ 判题 Worker Dockerfile（改进版）
+- ✅ 集成到 docker-compose.yml（含 sandbox 构建 profile）
 
 ### 7.5 测试
-- ⬜ 判题服务单元测试（代码组装/结果比对）
+- ✅ 判题服务单元测试（代码组装/结果比对）— 61 tests
 - ⬜ 集成测试（完整判题流程）
 
 ---
@@ -232,40 +232,42 @@
 ## 阶段八：成绩管理模块
 
 ### 8.1 后端 - 成绩查询与导出
-- ⬜ GET /api/courses/:id/grades — 获取课程成绩汇总
-- ⬜ GET /api/courses/:id/grades/export — 导出成绩（Excel/CSV）
-- ⬜ 成绩计算逻辑（取最优提交 + 加权汇总）
-- ⬜ 数据统计（平均分/最高分/最低分/通过率）
-- ⬜ 单元测试：成绩模块
+- ✅ GET /api/grades/courses/:id — 获取课程成绩汇总
+- ✅ GET /api/grades/courses/:id/export — 导出成绩（Excel/CSV）
+- ✅ 成绩计算逻辑（取最优提交 + 加权汇总）
+- ✅ 数据统计（平均分/最高分/最低分）
+- ✅ 单元测试：成绩模块（12 项测试）
+- ✅ 通过率统计
 
 ### 8.2 前端 - 成绩页面
-- ⬜ 教师：课程成绩汇总表格（支持排序/筛选）
-- ⬜ 教师：单个学生详细成绩查看
-- ⬜ 教师：成绩导出按钮（下载 Excel）
-- ⬜ 学生：个人成绩查看页面
-- ⬜ 数据统计图表（通过率/得分分布）
+- ✅ 教师：课程成绩汇总表格（支持排序/筛选）
+- ✅ 教师：单个学生详细成绩查看
+- ✅ 教师：成绩导出按钮（下载 Excel/CSV）
+- ✅ 学生：个人成绩查看页面（复用同一页面，自动过滤）
+- ✅ 数据统计图表（通过率/得分分布）
+- ✅ 侧边栏导航链接
 
 ---
 
 ## 阶段九：系统优化与部署
 
 ### 9.1 性能优化
-- ⬜ 数据库查询优化（N+1 问题、索引检查）
-- ⬜ Redis 缓存热点数据（课程信息/题目信息）
-- ⬜ 前端代码分割（React.lazy）
+- ✅ 数据库查询优化（N+1 问题、索引检查）
+- ✅ Redis 缓存热点数据（课程信息/题目信息）
+- ✅ 前端代码分割（React.lazy + Suspense）
 - ⬜ 前端静态资源 CDN 配置
 
 ### 9.2 安全加固
 - ⬜ 安全审计（依赖漏洞扫描）
-- ⬜ 生产环境错误信息脱敏
+- ✅ 生产环境错误信息脱敏（DEBUG 开关）
 - ⬜ 日志安全检查（确保不记录敏感信息）
-- ⬜ CSP / X-Frame-Options 等安全头配置
+- ✅ CSP / X-Frame-Options / X-Content-Type-Options / HSTS / Referrer-Policy / Permissions-Policy
 
 ### 9.3 部署
-- ⬜ 前端 Nginx 配置（SPA 路由 + 静态文件）
-- ⬜ 后端 Gunicorn/Uvicorn 生产配置
-- ⬜ Docker Compose 生产配置
-- ⬜ 环境变量管理（.env.production）
+- ✅ 前端 Nginx 配置（SPA 路由 + 静态文件缓存）
+- ✅ 后端 Uvicorn 生产配置
+- ✅ Docker 非 root 用户运行（backend / judge）
+- ✅ 环境变量管理（.env.production）
 - ⬜ 数据库备份策略
 
 ### 9.4 文档

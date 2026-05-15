@@ -32,7 +32,7 @@ export default function ProblemList() {
     fetchProblems();
   }, [page, filters]);
 
-  const difficultyColors: Record<string, string> = { easy: 'green', medium: 'orange', hard: 'red' };
+  const difficultyColors: Record<string, string> = { easy: 'green', medium: 'warning', hard: 'red' };
   const difficultyLabels: Record<string, string> = { easy: '简单', medium: '中等', hard: '困难' };
 
   const columns = [
@@ -59,16 +59,14 @@ export default function ProblemList() {
       title: '操作',
       key: 'action',
       render: (_: any, record: Problem) => (
-        <Space>
-          <Button type="link" onClick={() => navigate(`/problems/${record.id}/edit`)}>编辑</Button>
-        </Space>
+        <Button type="link" onClick={() => navigate(`/problems/${record.id}/edit`)}>编辑</Button>
       ),
     },
   ];
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+      <div className="page-header">
         <Title level={4} style={{ margin: 0 }}>题目管理</Title>
         <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/problems/create')}>
           创建题目
@@ -106,12 +104,7 @@ export default function ProblemList() {
         columns={columns}
         rowKey="id"
         loading={loading}
-        pagination={{
-          current: page,
-          total,
-          pageSize: 20,
-          onChange: setPage,
-        }}
+        pagination={{ current: page, total, pageSize: 20, onChange: setPage }}
       />
     </div>
   );

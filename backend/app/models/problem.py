@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from typing import ClassVar
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, JSON, String, Text, Uuid, func
 from sqlalchemy.orm import Mapped, mapped_column
@@ -9,6 +10,8 @@ from app.database import Base
 
 class Problem(Base):
     __tablename__ = "problems"
+
+    pass_rate: ClassVar[float | None] = None  # 通过率 0.0 ~ 100.0 (computed at runtime, not a DB column)
 
     id: Mapped[uuid.UUID] = mapped_column(
         Uuid, primary_key=True, default=uuid.uuid4
