@@ -17,6 +17,7 @@ export default function ProblemEdit() {
   const navigate = useNavigate();
   const [form] = Form.useForm();
   const watchedDescription = Form.useWatch('description', form);
+  const watchedSignatures = Form.useWatch('signatures', form);
 
   // Load existing problem data
   useEffect(() => {
@@ -35,6 +36,7 @@ export default function ProblemEdit() {
           tags: p.tags || [],
           compare_mode: p.compare_mode,
           signatures: p.signatures?.map((sig) => ({
+            id: sig.id,
             language: sig.language,
             function_name: sig.function_name,
             return_type: sig.return_type,
@@ -49,6 +51,7 @@ export default function ProblemEdit() {
             })) || [],
           })) || [{ language: 'python' }],
           test_cases: p.test_cases?.map((tc) => ({
+            id: tc.id,
             input_params: JSON.stringify(tc.input_params_json, null, 2),
             expected_output: JSON.stringify(tc.expected_output_json),
             is_public: tc.is_public,
@@ -76,21 +79,29 @@ export default function ProblemEdit() {
         memory_limit: values.memory_limit,
         tags: values.tags || [],
         compare_mode: values.compare_mode,
-        signatures: values.signatures.map((sig: any) => ({
-          language: sig.language,
-          function_name: sig.function_name,
-          parameters: sig.parameters || [],
-          return_type: sig.return_type,
-          code_template: sig.code_template,
-          prelude_code: sig.prelude_code || '',
-          driver_template: sig.driver_template || '',
-        })),
-        test_cases: values.test_cases.map((tc: any) => ({
-          input_params: JSON.parse(tc.input_params),
-          expected_output: JSON.parse(tc.expected_output),
-          is_public: tc.is_public || false,
-          description: tc.description || '',
-        })),
+        signatures: values.signatures.map((sig: any) => {
+          const entry: Record<string, any> = {
+            language: sig.language,
+            function_name: sig.function_name,
+            parameters: sig.parameters || [],
+            return_type: sig.return_type,
+            code_template: sig.code_template,
+            prelude_code: sig.prelude_code || '',
+            driver_template: sig.driver_template || '',
+          };
+          if (sig.id) entry.id = sig.id;
+          return entry;
+        }),
+        test_cases: values.test_cases.map((tc: any) => {
+          const entry: Record<string, any> = {
+            input_params: JSON.parse(tc.input_params),
+            expected_output: JSON.parse(tc.expected_output),
+            is_public: tc.is_public || false,
+            description: tc.description || '',
+          };
+          if (tc.id) entry.id = tc.id;
+          return entry;
+        }),
       };
       await problemsApi.updateProblem(id, payload as any);
       message.success('题目更新成功');
@@ -154,7 +165,9 @@ export default function ProblemEdit() {
                   onEdit={(_, action) => { if (action === 'add') add({ language: 'python' }); }}
                   items={fields.map((field, idx) => ({
                     key: String(idx),
-                    label: form.getFieldValue(['signatures', field.name, 'language']) || `签名${idx + 1}`,
+                    label: watchedSignatures?.[field.name]?.language
+                      ? `${watchedSignatures[field.name].language}${watchedSignatures[field.name].function_name ? ` - ${watchedSignatures[field.name].function_name}` : ''}`
+                      : `签名${idx + 1}`,
                     closable: fields.length > 1,
                     children: (
                       <div>
@@ -171,17 +184,17 @@ export default function ProblemEdit() {
                           {fields.length > 1 && <MinusCircleOutlined onClick={() => remove(field.name)} />}
                         </Space>
                         <Form.Item name={[field.name, 'code_template']} label="代码模板" rules={[{ required: true }]}>
-                          <TextArea rows={6} placeholder="学生看到的初始代码" />
+                          <TextArea rows={6} placeholder="学生看到的初始代码" style={{ width: '100%' }} />
                         </Form.Item>
                         <Form.Item name={[field.name, 'prelude_code']} label="Prelude 代码"
                           tooltip="定义题目需要但学生不应手写的数据结构（如 ListNode、TreeNode）。简单题目（如只涉及基本类型 List[int]、int）不需要填，系统会自动处理。"
                         >
-                          <TextArea rows={3} placeholder="预置代码（数据结构等），简单题可留空" />
+                          <TextArea rows={3} placeholder="预置代码（数据结构等），简单题可留空" style={{ width: '100%' }} />
                         </Form.Item>
                         <Form.Item name={[field.name, 'driver_template']} label="Driver 模板"
                           tooltip="控制如何把 JSON 测试用例解包后调用学生函数并输出结果。对于 List[int]、int 等标准类型系统会自动生成，不需要填。只有当参数类型复杂（如嵌套 JSON、树结构）时才需要自定义。"
                         >
-                          <TextArea rows={4} placeholder="驱动代码模板，标准类型可留空，系统自动生成" />
+                          <TextArea rows={4} placeholder="驱动代码模板，标准类型可留空，系统自动生成" style={{ width: '100%' }} />
                         </Form.Item>
                         <Form.List name={[field.name, 'parameters']}>
                           {(paramFields, { add: addParam, remove: removeParam }) => (
@@ -225,10 +238,10 @@ export default function ProblemEdit() {
                     extra={fields.length > 1 && <MinusCircleOutlined onClick={() => remove(field.name)} />}
                   >
                     <Form.Item name={[field.name, 'input_params']} label="输入 (JSON)" rules={[{ required: true }]}>
-                      <TextArea rows={2} placeholder='{"nums": [2, 7, 11, 15], "target": 9}' />
+                      <TextArea rows={3} placeholder='{"nums": [2, 7, 11, 15], "target": 9}' style={{ width: '100%' }} />
                     </Form.Item>
                     <Form.Item name={[field.name, 'expected_output']} label="期望输出 (JSON)" rules={[{ required: true }]}>
-                      <TextArea rows={2} placeholder='[0, 1]' />
+                      <TextArea rows={3} placeholder='[0, 1]' style={{ width: '100%' }} />
                     </Form.Item>
                     <Space>
                       <Form.Item name={[field.name, 'is_public']} valuePropName="checked" label="公开">

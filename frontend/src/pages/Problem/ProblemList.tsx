@@ -59,7 +59,10 @@ export default function ProblemList() {
       title: '操作',
       key: 'action',
       render: (_: any, record: Problem) => (
-        <Button type="link" onClick={() => navigate(`/problems/${record.id}/edit`)}>编辑</Button>
+        <Space>
+          <Button type="link" onClick={() => navigate(`/problems/${record.id}`)}>详情</Button>
+          <Button type="link" onClick={() => navigate(`/problems/${record.id}/edit`)}>编辑</Button>
+        </Space>
       ),
     },
   ];

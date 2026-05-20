@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { Layout, Menu, Dropdown, Avatar, Space, Typography } from 'antd';
+import { Layout, Menu, Dropdown, Avatar, Space, Typography, message } from 'antd';
 import {
   BarChartOutlined,
   BookOutlined,
@@ -8,6 +8,7 @@ import {
   DashboardOutlined,
   KeyOutlined,
   LogoutOutlined,
+  SwapOutlined,
   TeamOutlined,
   UserOutlined,
   MenuFoldOutlined,
@@ -22,7 +23,7 @@ export default function AppLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, logout } = useAuthStore();
+  const { user, logout, accounts, switchAccount } = useAuthStore();
 
   const isTeacher = user?.role === 'teacher' || user?.role === 'admin';
   const isAdmin = user?.role === 'admin';
@@ -67,7 +68,8 @@ export default function AppLayout() {
       : []),
   ];
 
-  const userMenuItems = [
+  const otherAccounts = accounts.filter((a) => a.userId !== user?.id);
+  const userMenuItems: any[] = [
     {
       key: 'profile',
       icon: <UserOutlined />,
@@ -78,14 +80,30 @@ export default function AppLayout() {
       icon: <KeyOutlined />,
       label: '修改密码',
     },
-    { type: 'divider' as const },
-    {
-      key: 'logout',
-      icon: <LogoutOutlined />,
-      label: '退出登录',
-      danger: true,
-    },
   ];
+
+  // Account switching
+  if (otherAccounts.length > 0) {
+    userMenuItems.push({ type: 'divider' as const });
+    userMenuItems.push({
+      key: 'account_group',
+      type: 'group' as const,
+      label: '切换账号',
+      children: otherAccounts.map((a) => ({
+        key: `switch_${a.userId}`,
+        icon: <SwapOutlined />,
+        label: `${a.user.nickname || a.user.username} (${a.email})`,
+      })),
+    });
+  }
+
+  userMenuItems.push({ type: 'divider' as const });
+  userMenuItems.push({
+    key: 'logout',
+    icon: <LogoutOutlined />,
+    label: '退出登录',
+    danger: true,
+  });
 
   const handleMenuClick = ({ key }: { key: string }) => {
     navigate(key);
@@ -99,6 +117,10 @@ export default function AppLayout() {
       navigate('/profile');
     } else if (key === 'password') {
       navigate('/profile/password');
+    } else if (key.startsWith('switch_')) {
+      const userId = key.replace('switch_', '');
+      switchAccount(userId);
+      message.success('已切换账号');
     }
   };
 

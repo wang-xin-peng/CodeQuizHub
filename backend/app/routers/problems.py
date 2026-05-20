@@ -17,6 +17,7 @@ from app.schemas.problem import (
     TestCaseCreateRequest,
 )
 from app.schemas.response import paginated_response, success_response
+from app.utils.code_template import generate_code_template
 
 router = APIRouter()
 
@@ -303,7 +304,12 @@ async def upsert_signature(
         existing.function_name = body.function_name
         existing.parameters_json = [p.model_dump() for p in body.parameters]
         existing.return_type = body.return_type
-        existing.code_template = body.code_template
+        existing.code_template = body.code_template or generate_code_template(
+            language=body.language,
+            function_name=body.function_name,
+            parameters=[p.model_dump() for p in body.parameters],
+            return_type=body.return_type,
+        )
         existing.prelude_code = body.prelude_code
         existing.driver_template = body.driver_template
     else:
@@ -313,7 +319,12 @@ async def upsert_signature(
             function_name=body.function_name,
             parameters_json=[p.model_dump() for p in body.parameters],
             return_type=body.return_type,
-            code_template=body.code_template,
+            code_template=body.code_template or generate_code_template(
+                language=body.language,
+                function_name=body.function_name,
+                parameters=[p.model_dump() for p in body.parameters],
+                return_type=body.return_type,
+            ),
             prelude_code=body.prelude_code,
             driver_template=body.driver_template,
         )

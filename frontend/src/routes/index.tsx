@@ -12,6 +12,7 @@ const CourseList = lazy(() => import('../pages/Course/CourseList'));
 const CourseDetail = lazy(() => import('../pages/Course/CourseDetail'));
 const CourseCreate = lazy(() => import('../pages/Course/CourseCreate'));
 const ProblemList = lazy(() => import('../pages/Problem/ProblemList'));
+const ProblemDetail = lazy(() => import('../pages/Problem/ProblemDetail'));
 const ProblemCreate = lazy(() => import('../pages/Problem/ProblemCreate'));
 const ProblemEdit = lazy(() => import('../pages/Problem/ProblemEdit'));
 const ProblemSolve = lazy(() => import('../pages/Problem/ProblemSolve'));
@@ -60,6 +61,7 @@ export const router = createBrowserRouter([
           { path: '/courses/:id', element: <SuspenseWrapper><CourseDetail /></SuspenseWrapper> },
           { path: '/problems', element: <SuspenseWrapper><ProblemList /></SuspenseWrapper> },
           { path: '/problems/create', element: <SuspenseWrapper><ProblemCreate /></SuspenseWrapper> },
+          { path: '/problems/:id', element: <SuspenseWrapper><ProblemDetail /></SuspenseWrapper> },
           { path: '/problems/:id/edit', element: <SuspenseWrapper><ProblemEdit /></SuspenseWrapper> },
           { path: '/assignments/create', element: <SuspenseWrapper><AssignmentCreate /></SuspenseWrapper> },
           { path: '/assignments/:id', element: <SuspenseWrapper><AssignmentDetail /></SuspenseWrapper> },

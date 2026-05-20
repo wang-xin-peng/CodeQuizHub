@@ -49,7 +49,8 @@ class CodeAssembler:
 
 def main():
     input_data = json.loads(sys.argv[1])
-    result = {function_name}({args})
+    sol = Solution()
+    result = sol.{function_name}({args})
     print(json.dumps(result))
 
 if __name__ == "__main__":

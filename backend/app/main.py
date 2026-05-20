@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.types import ASGIApp
 
 from app.config import get_settings
 from app.core.errors import AppError
@@ -102,6 +103,35 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "script-src 'self'; "
+            "style-src 'self' 'unsafe-inline'; "
+            "img-src 'self' data:; "
+            "font-src 'self'; "
+            "connect-src 'self'; "
+            "frame-ancestors 'none'; "
+            "base-uri 'self'; "
+            "form-action 'self'"
+        )
+        return response
+
+
+class RequestLoggingMiddleware(BaseHTTPMiddleware):
+    """Log HTTP requests without sensitive data (skip auth endpoints)."""
+
+    SENSITIVE_PATHS = ("/api/auth/login", "/api/auth/register", "/api/users/me/password")
+
+    async def dispatch(self, request: Request, call_next):
+        path = request.url.path
+        response = await call_next(request)
+        if path not in self.SENSITIVE_PATHS:
+            logger.info(
+                "%s %s -> %s",
+                request.method,
+                path,
+                response.status_code,
+            )
         return response
 
 
@@ -115,6 +145,9 @@ app = FastAPI(
 
 # Security headers (applied before CORS in middleware order)
 app.add_middleware(SecurityHeadersMiddleware)
+
+# Request logging (skips sensitive paths)
+app.add_middleware(RequestLoggingMiddleware)
 
 # CORS
 app.add_middleware(
