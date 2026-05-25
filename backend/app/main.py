@@ -25,24 +25,46 @@ logger = logging.getLogger(__name__)
 
 
 async def auto_close_assignments():
-    """Periodically check and close overdue assignments."""
+    """Periodically check and update assignment statuses based on time.
+
+    Covers all time-driven transitions:
+      - not_started → ongoing (when start_time is reached)
+      - published   → ongoing (when start_time is reached)
+      - ongoing     → closed  (when end_time has passed)
+      - published   → closed  (when end_time has passed)
+      - not_started → closed  (rare: start_time == end_time)
+    """
     while True:
         try:
             async with async_session_factory() as session:
                 now = datetime.now(timezone.utc).replace(tzinfo=None)
+
+                # Fetch all assignments whose status is time-dependent
                 result = await session.execute(
                     select(Assignment).where(
-                        Assignment.status == "published",
-                        Assignment.end_time < now,
+                        Assignment.status.in_(["published", "not_started", "ongoing"]),
                     )
                 )
-                overdue = result.scalars().all()
-                for assignment in overdue:
-                    assignment.status = "closed"
-                if overdue:
+                assignments = result.scalars().all()
+
+                updated = 0
+                for a in assignments:
+                    new_status: str | None = None
+                    if now < a.start_time:
+                        new_status = "not_started"
+                    elif now > a.end_time:
+                        new_status = "closed"
+                    else:
+                        new_status = "ongoing"
+
+                    if new_status != a.status:
+                        a.status = new_status
+                        updated += 1
+
+                if updated:
                     await session.commit()
                     print(
-                        f"  [scheduler] Closed {len(overdue)} overdue assignment(s)",
+                        f"  [scheduler] Updated {updated} assignment(s)",
                         flush=True,
                     )
         except Exception as e:
