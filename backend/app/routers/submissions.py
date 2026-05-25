@@ -82,7 +82,7 @@ async def submit_code(
         raise NotFoundError("assignment", body.assignment_id)
 
     now = datetime.now(timezone.utc)
-    if assignment.status != "published":
+    if assignment.status not in ("ongoing", "published"):
         raise BusinessError(ErrorCode.ASSIGNMENT_NOT_STARTED, "作业未发布")
     if now < assignment.start_time.replace(tzinfo=timezone.utc):
         raise BusinessError(ErrorCode.ASSIGNMENT_NOT_STARTED, "作业未开始")

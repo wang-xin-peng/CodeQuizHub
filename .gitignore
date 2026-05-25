@@ -32,3 +32,5 @@ frontend/dist/
 # Docker volumes
 pgdata/
 nul
+
+周报.txt

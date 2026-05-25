@@ -111,8 +111,11 @@ class TestGenerateCodeTemplate:
         )
         assert "#include <vector>" in template
         assert "#include <string>" in template
+        assert "class Solution {" in template
+        assert "public:" in template
         assert "int add(int a, int b)" in template
         assert "return 0;" in template
+        assert "};" in template
 
     def test_cpp_vector_param(self):
         """C++: function with vector parameter."""
@@ -125,6 +128,7 @@ class TestGenerateCodeTemplate:
             ],
             return_type="int[]",
         )
+        assert "class Solution {" in template
         assert "vector<int>& twoSum(vector<int>& nums, int target)" in template
 
     def test_cpp_string_return(self):
@@ -135,6 +139,7 @@ class TestGenerateCodeTemplate:
             parameters=[{"name": "name", "type": "String"}],
             return_type="str",
         )
+        assert "class Solution {" in template
         assert "string greet(string name)" in template
         assert 'return "";' in template
 

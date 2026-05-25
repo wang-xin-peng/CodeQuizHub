@@ -178,6 +178,7 @@ async def process_submission(task: dict, pool, redis_client):
                 function_name=sig["function_name"],
                 input_params=input_params,
                 parameters_json=sig["parameters_json"],
+                return_type=sig.get("return_type", "int"),
             )
 
             # Execute in Docker sandbox

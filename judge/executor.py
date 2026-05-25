@@ -26,8 +26,8 @@ IMAGE_MAP = {
 
 COMPILE_COMMANDS = {
     "python": None,  # interpreted
-    "java": "javac -cp .:json.jar Solution.java Main.java",
-    "c": "gcc -o solution solution.c -lm -ljson-c",
+    "java": "javac -cp .:json.jar Solution.java",
+    "c": "gcc -o solution solution.c -I/usr/include/cjson -lcjson -lm",
     "cpp": "g++ -o solution solution.cpp -std=c++17",
 }
 
@@ -68,25 +68,31 @@ class DockerExecutor:
         run_cmd = RUN_COMMANDS[self.language]
         input_file = "input.json"
 
-        # Build the command to run inside container
-        # Pass input via a file to avoid shell quoting issues
+        # Separate compile and run so that only execution time is measured
         if compile_cmd:
-            full_cmd = f"sh -c 'cd /workspace && {compile_cmd} 2>&1 && {run_cmd} \"$(cat {input_file})\"'"
+            compile_only_cmd = f"sh -c 'cd /workspace && {compile_cmd}'"
+            run_only_cmd = f"sh -c 'cd /workspace && {run_cmd} \"$(cat {input_file})\"'"
         else:
-            full_cmd = f"sh -c 'cd /workspace && {run_cmd} \"$(cat {input_file})\"'"
+            compile_only_cmd = None
+            run_only_cmd = f"sh -c 'cd /workspace && {run_cmd} \"$(cat {input_file})\"'"
 
         # Timeout in seconds (add 2s buffer)
         timeout_s = (self.time_limit_ms / 1000) + 2
 
         try:
-            # Check if image exists
+            # Check if image exists, try to pull if not
             try:
                 docker_client.images.get(self.image)
             except ImageNotFound:
-                logger.warning(f"Image {self.image} not found, using python fallback")
-                self.image = "python:3.11-slim"
-
-            start_time = time.time()
+                logger.warning(f"Image {self.image} not found, attempting to pull")
+                try:
+                    docker_client.images.pull(self.image)
+                except Exception:
+                    raise RuntimeError(
+                        f"Docker image '{self.image}' not found and could not be pulled. "
+                        f"Please build it:\n"
+                        f"  docker compose --profile sandbox build sandbox-{self.language}"
+                    )
 
             # Create tar archive with source code and input data
             import tarfile
@@ -94,12 +100,10 @@ class DockerExecutor:
 
             tar_stream = io.BytesIO()
             with tarfile.open(fileobj=tar_stream, mode='w') as tar:
-                # Source code
                 code_bytes = code.encode('utf-8')
                 info = tarfile.TarInfo(name=source_file)
                 info.size = len(code_bytes)
                 tar.addfile(info, io.BytesIO(code_bytes))
-                # Input data
                 input_bytes = input_json.encode('utf-8')
                 info2 = tarfile.TarInfo(name=input_file)
                 info2.size = len(input_bytes)
@@ -125,11 +129,29 @@ class DockerExecutor:
             # Copy source code and input data into container
             container.put_archive("/workspace", tar_stream)
 
-            # Execute the command
-            exec_result = container.exec_run(
-                full_cmd,
-                demux=True,
-            )
+            # ── Step 1: Compile (not timed) ──
+            if compile_only_cmd:
+                c_result = container.exec_run(compile_only_cmd, demux=True)
+                c_out, c_err = c_result.output
+                c_out = c_out.decode('utf-8', errors='replace') if c_out else ""
+                c_err = c_err.decode('utf-8', errors='replace') if c_err else ""
+                c_exit = c_result.exit_code
+
+                if c_exit != 0:
+                    error_msg = c_err or c_out or f"Compilation failed (exit={c_exit})"
+                    logger.info(f"compilation failed: exit={c_exit} stderr={c_err[:300]} stdout={c_out[:300]}")
+                    container.remove(force=True)
+                    return {
+                        "status": "compilation_error",
+                        "output": "",
+                        "error": error_msg[:2000],
+                        "time_used": 0,
+                        "memory_used": 0,
+                    }
+
+            # ── Step 2: Run (timed) ──
+            start_time = time.time()
+            exec_result = container.exec_run(run_only_cmd, demux=True)
             end_time = time.time()
 
             time_used_ms = int((end_time - start_time) * 1000)
@@ -138,6 +160,8 @@ class DockerExecutor:
             stdout = stdout.decode('utf-8', errors='replace') if stdout else ""
             stderr = stderr.decode('utf-8', errors='replace') if stderr else ""
             exit_code = exec_result.exit_code
+
+            logger.info(f"exec_run took {time_used_ms}ms exit={exit_code} stderr={stderr[:300]}")
 
             # Get memory usage stats
             try:
@@ -155,16 +179,6 @@ class DockerExecutor:
                     "status": "timeout",
                     "output": "",
                     "error": "Time Limit Exceeded",
-                    "time_used": time_used_ms,
-                    "memory_used": memory_used_kb,
-                }
-
-            # Check compilation error (for compiled languages)
-            if compile_cmd and exit_code != 0 and "error" in stderr.lower():
-                return {
-                    "status": "compilation_error",
-                    "output": "",
-                    "error": stderr[:2000],
                     "time_used": time_used_ms,
                     "memory_used": memory_used_kb,
                 }

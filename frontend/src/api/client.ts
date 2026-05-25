@@ -8,9 +8,9 @@ const client = axios.create({
   },
 });
 
-// Request interceptor: inject token
+// Request interceptor: inject token from sessionStorage (per-tab)
 client.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
+  const token = sessionStorage.getItem('token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -25,8 +25,13 @@ client.interceptors.response.use(
       const { status, data } = error.response;
 
       if (status === 401) {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
+        // Clear this tab's sessionStorage only — other tabs are unaffected
+        sessionStorage.removeItem('token');
+        sessionStorage.removeItem('user');
+        sessionStorage.removeItem('active_account_id');
+        // Also clean up the accounts list in shared localStorage so the
+        // invalidated account doesn't reappear on next load
+        localStorage.removeItem('auth_accounts');
         window.location.href = '/login';
       }
 

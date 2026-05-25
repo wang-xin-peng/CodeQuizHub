@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Select, Space, Table, Tag, Typography, message } from 'antd';
-import { PlusOutlined } from '@ant-design/icons';
+import { Button, Modal, Select, Space, Table, Tag, Typography, message } from 'antd';
+import { DeleteOutlined, PlusOutlined } from '@ant-design/icons';
 import * as problemsApi from '../../api/problems';
 import type { Problem } from '../../types';
 
@@ -31,6 +31,31 @@ export default function ProblemList() {
   useEffect(() => {
     fetchProblems();
   }, [page, filters]);
+
+  const handleDelete = (record: Problem) => {
+    Modal.confirm({
+      title: '确认删除',
+      content: (
+        <span>
+          确定要删除题目「<b>{record.title}</b>」吗？
+          <br />
+          删除后不可恢复，相关的提交记录也会一并清除。
+        </span>
+      ),
+      okText: '删除',
+      okType: 'danger',
+      cancelText: '取消',
+      onOk: async () => {
+        try {
+          await problemsApi.deleteProblem(record.id);
+          message.success('题目已删除');
+          fetchProblems(1);
+        } catch (err: any) {
+          message.error(err?.response?.data?.message || err?.message || '删除失败');
+        }
+      },
+    });
+  };
 
   const difficultyColors: Record<string, string> = { easy: 'green', medium: 'warning', hard: 'red' };
   const difficultyLabels: Record<string, string> = { easy: '简单', medium: '中等', hard: '困难' };
@@ -62,6 +87,9 @@ export default function ProblemList() {
         <Space>
           <Button type="link" onClick={() => navigate(`/problems/${record.id}`)}>详情</Button>
           <Button type="link" onClick={() => navigate(`/problems/${record.id}/edit`)}>编辑</Button>
+          <Button type="link" danger icon={<DeleteOutlined />} onClick={() => handleDelete(record)}>
+            删除
+          </Button>
         </Space>
       ),
     },

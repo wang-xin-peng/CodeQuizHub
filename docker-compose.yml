@@ -35,6 +35,8 @@ services:
       dockerfile: Dockerfile
     volumes:
       - ./backend:/app
+      - /var/run/docker.sock:/var/run/docker.sock
+    user: root
     ports:
       - "8000:8000"
     environment:
@@ -56,11 +58,12 @@ services:
     build:
       context: ./judge
       dockerfile: Dockerfile
+    volumes:
+      - ./judge:/app
+      - /var/run/docker.sock:/var/run/docker.sock
     environment:
       - REDIS_URL=redis://redis:6379/0
       - DATABASE_URL=postgresql://codequizhub:${DB_PASSWORD:-codequizhub}@db:5432/codequizhub
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
       db:
         condition: service_healthy

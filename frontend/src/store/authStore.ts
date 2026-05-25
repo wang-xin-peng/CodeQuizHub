@@ -17,7 +17,7 @@ interface AuthState {
   token: string | null;
   loading: boolean;
   accounts: StoredAccount[];
-  /** Login - adds to multi-account store. Keeps active token/user in simple keys. */
+  /** Login - adds to multi-account store. Keeps active token/user in sessionStorage (per-tab). */
   login: (email: string, password: string) => Promise<void>;
   /** Logout - removes only the currently active account (keeps others intact). */
   logout: () => void;
@@ -28,6 +28,8 @@ interface AuthState {
   loadUser: () => void;
   setUser: (user: User) => void;
 }
+
+// ── helpers: auth_accounts list (shared localStorage) ──
 
 function loadAccounts(): StoredAccount[] {
   try {
@@ -42,56 +44,63 @@ function saveAccounts(accounts: StoredAccount[]) {
   localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts));
 }
 
+// ── helpers: active credentials (per-tab sessionStorage) ──
+
 function setActiveCredentials(token: string, user: User) {
-  localStorage.setItem('token', token);
-  localStorage.setItem('user', JSON.stringify(user));
-  localStorage.setItem(ACTIVE_ID_KEY, user.id);
+  sessionStorage.setItem('token', token);
+  sessionStorage.setItem('user', JSON.stringify(user));
+  sessionStorage.setItem(ACTIVE_ID_KEY, user.id);
 }
 
 function clearActiveCredentials() {
-  localStorage.removeItem('token');
-  localStorage.removeItem('user');
-  localStorage.removeItem(ACTIVE_ID_KEY);
+  sessionStorage.removeItem('token');
+  sessionStorage.removeItem('user');
+  sessionStorage.removeItem(ACTIVE_ID_KEY);
 }
 
-function findOrMigrateLegacyAccount(): StoredAccount | null {
-  const token = localStorage.getItem('token');
-  const rawUser = localStorage.getItem('user');
-  if (!token || !rawUser) return null;
-  try {
-    const user = JSON.parse(rawUser) as User;
-    return { userId: user.id, email: user.email, token, user };
-  } catch {
-    return null;
+/** Try to read active credentials from sessionStorage. */
+function readActiveCredentials(): { token: string | null; user: User | null } {
+  const token = sessionStorage.getItem('token');
+  const rawUser = sessionStorage.getItem('user');
+  if (token && rawUser) {
+    try {
+      return { token, user: JSON.parse(rawUser) as User };
+    } catch {
+      // ignore corrupted data
+    }
   }
+  return { token: null, user: null };
 }
 
 export const useAuthStore = create<AuthState>((set, get) => {
-  // Migration: if legacy account exists but no accounts array, migrate it
+  // ── Initialization (runs once when the store is first created) ──
+
   let initialAccounts = loadAccounts();
+
+  // Migration from legacy single-account (pre-multi-account format)
   if (initialAccounts.length === 0) {
-    const legacy = findOrMigrateLegacyAccount();
-    if (legacy) {
-      initialAccounts = [legacy];
+    const { token, user } = readActiveCredentials();
+    if (token && user) {
+      initialAccounts = [{ userId: user.id, email: user.email, token, user }];
       saveAccounts(initialAccounts);
     }
   }
 
-  const activeId = localStorage.getItem(ACTIVE_ID_KEY);
+  // Determine the active account for THIS tab from sessionStorage
+  const activeId = sessionStorage.getItem(ACTIVE_ID_KEY);
   const activeAccount = activeId
     ? initialAccounts.find((a) => a.userId === activeId)
     : initialAccounts[initialAccounts.length - 1] || null;
 
-  // Ensure the active account's token/user is always in the simple keys
-  const initialUser: User | null = (() => {
-    if (activeAccount) {
-      setActiveCredentials(activeAccount.token, activeAccount.user);
-      return activeAccount.user;
-    }
-    const stored = localStorage.getItem('user');
-    return stored ? JSON.parse(stored) : null;
-  })();
-  const initialToken = activeAccount?.token || localStorage.getItem('token');
+  // The active user/token for this tab
+  const { token: sessToken, user: sessUser } = readActiveCredentials();
+  const initialUser = activeAccount?.user ?? sessUser;
+  const initialToken = activeAccount?.token ?? sessToken;
+
+  // If we found an active account, ensure sessionStorage matches
+  if (activeAccount) {
+    setActiveCredentials(activeAccount.token, activeAccount.user);
+  }
 
   return {
     user: initialUser,
@@ -112,12 +121,12 @@ export const useAuthStore = create<AuthState>((set, get) => {
           user,
         };
 
-        // Update accounts list: add or replace
+        // Update accounts list: add or replace (shared localStorage)
         const accounts = get().accounts.filter((a) => a.userId !== user.id);
         accounts.push(account);
         saveAccounts(accounts);
 
-        // Set as active
+        // Set as active in THIS tab's sessionStorage only
         setActiveCredentials(access_token, user);
         set({ user, token: access_token, accounts, loading: false });
       } catch (error) {
@@ -176,7 +185,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
 
     loadUser: () => {
       const accounts = loadAccounts();
-      const activeId = localStorage.getItem(ACTIVE_ID_KEY);
+      const activeId = sessionStorage.getItem(ACTIVE_ID_KEY);
       const activeAccount = activeId
         ? accounts.find((a) => a.userId === activeId)
         : accounts[accounts.length - 1] || null;
@@ -185,17 +194,16 @@ export const useAuthStore = create<AuthState>((set, get) => {
         setActiveCredentials(activeAccount.token, activeAccount.user);
         set({ user: activeAccount.user, token: activeAccount.token, accounts });
       } else {
-        const stored = localStorage.getItem('user');
-        const token = localStorage.getItem('token');
-        if (stored && token) {
-          set({ user: JSON.parse(stored), token, accounts });
+        const { token, user } = readActiveCredentials();
+        if (token && user) {
+          set({ user, token, accounts });
         }
       }
     },
 
     setUser: (user: User) => {
       const { accounts } = get();
-      localStorage.setItem('user', JSON.stringify(user));
+      sessionStorage.setItem('user', JSON.stringify(user));
       // Also update in accounts list
       const updated = accounts.map((a) =>
         a.userId === user.id ? { ...a, user } : a

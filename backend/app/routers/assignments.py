@@ -142,14 +142,70 @@ async def update_assignment(
     if body.end_time is not None:
         assignment.end_time = body.end_time.astimezone(timezone.utc).replace(tzinfo=None) if body.end_time.tzinfo else body.end_time
     if body.status is not None:
-        if body.status not in ("draft", "published", "closed"):
+        if body.status not in ("draft", "not_started", "ongoing", "closed", "published"):
             raise BusinessError(ErrorCode.VALIDATION_INVALID_FORMAT, "无效的作业状态")
         assignment.status = body.status
+
+    # Update problems if provided
+    if body.problem_ids is not None:
+        # Remove existing problem relations
+        old_aps = await db.execute(
+            select(AssignmentProblem).where(AssignmentProblem.assignment_id == aid)
+        )
+        for ap in old_aps.scalars().all():
+            await db.delete(ap)
+
+        # Add new problem relations
+        weights = body.score_weights or [100] * len(body.problem_ids)
+        for idx, (pid_str, weight) in enumerate(zip(body.problem_ids, weights)):
+            ap = AssignmentProblem(
+                assignment_id=aid,
+                problem_id=uuid_mod.UUID(pid_str),
+                score_weight=weight,
+                order=idx,
+            )
+            db.add(ap)
+
+    # Auto-calculate status based on current time
+    # Run when times are updated (even for closed assignments), or for active assignments
+    if body.start_time is not None or body.end_time is not None or assignment.status not in ("draft", "closed"):
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        if now < assignment.start_time:
+            assignment.status = "not_started"
+        elif now > assignment.end_time:
+            assignment.status = "closed"
+        else:
+            assignment.status = "ongoing"
 
     await db.flush()
     await db.refresh(assignment)
 
     return success_response(serialize_assignment(assignment))
+
+
+@router.delete("/{assignment_id}")
+async def delete_assignment(
+    assignment_id: str,
+    teacher: User = Depends(require_teacher),
+    db: AsyncSession = Depends(get_db),
+):
+    aid = uuid_mod.UUID(assignment_id)
+    result = await db.execute(select(Assignment).where(Assignment.id == aid))
+    assignment = result.scalar_one_or_none()
+    if not assignment:
+        raise NotFoundError("assignment", assignment_id)
+
+    # Verify course ownership
+    course_result = await db.execute(
+        select(Course).where(Course.id == assignment.course_id, Course.teacher_id == teacher.id)
+    )
+    if not course_result.scalar_one_or_none():
+        raise NotFoundError("assignment", assignment_id)
+
+    await db.delete(assignment)
+    await db.flush()
+
+    return success_response(message="作业已删除")
 
 
 @router.get("/course/{course_id}")
@@ -179,10 +235,10 @@ async def list_course_assignments(
         .where(Assignment.course_id == cid)
     )
 
-    # Students only see published/closed assignments
+    # Students only see active/closed assignments (exclude draft)
     if user.role == "student":
-        query = query.where(Assignment.status.in_(["published", "closed"]))
-        count_query = count_query.where(Assignment.status.in_(["published", "closed"]))
+        query = query.where(Assignment.status.in_(["published", "not_started", "ongoing", "closed"]))
+        count_query = count_query.where(Assignment.status.in_(["published", "not_started", "ongoing", "closed"]))
 
     total_result = await db.execute(count_query)
     total = total_result.scalar() or 0

@@ -10,7 +10,7 @@ class ParameterDef(BaseModel):
 
 
 class SignatureCreateRequest(BaseModel):
-    language: str = Field(..., max_length=20)
+    language: str = Field(..., min_length=1, max_length=20)
     function_name: str = Field(..., max_length=100)
     parameters: list[ParameterDef]
     return_type: str = Field(..., max_length=100)
@@ -46,6 +46,8 @@ class ProblemUpdateRequest(BaseModel):
     memory_limit: int | None = Field(None, ge=16, le=1024)
     tags: list[str] | None = None
     compare_mode: Literal["exact", "unordered", "float", "custom"] | None = None
+    signatures: list[SignatureCreateRequest] | None = None
+    test_cases: list[TestCaseCreateRequest] | None = None
 
 
 class SignatureResponse(BaseModel):

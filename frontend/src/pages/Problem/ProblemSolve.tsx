@@ -1,15 +1,17 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Button, Input, Modal, Select, Space, Spin, Tabs, Tag, Typography, message, Card } from 'antd';
+import { Button, Modal, Select, Space, Spin, Tabs, Tag, Typography, message, Card } from 'antd';
 import { PlayCircleOutlined, SendOutlined, UndoOutlined } from '@ant-design/icons';
 import { useDebouncedCallback } from 'use-debounce';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import CodeEditor from '../../components/CodeEditor/CodeEditor';
+import InputParamsEditor from '../../components/InputParamsEditor/InputParamsEditor';
 import { useEditorStore } from '../../store/editorStore';
 import * as problemsApi from '../../api/problems';
 import * as submissionsApi from '../../api/submissions';
 import * as assignmentsApi from '../../api/assignments';
+import * as coursesApi from '../../api/courses';
 import type { Problem, TestResultItem } from '../../types';
 import BackButton from '../../components/BackButton/BackButton';
 
@@ -21,6 +23,7 @@ export default function ProblemSolve() {
   const [loading, setLoading] = useState(true);
   const [availableLanguages, setAvailableLanguages] = useState<string[]>([]);
   const [initialTemplate, setInitialTemplate] = useState('');
+  const [courseLanguages, setCourseLanguages] = useState<string[]>([]);
 
   // Feature: problem navigation
   const [assignmentProblems, setAssignmentProblems] = useState<string[]>([]);
@@ -38,42 +41,81 @@ export default function ProblemSolve() {
     setCode, setLanguage, setRunning, setSubmitting, setTestResults, setCompileError,
   } = useEditorStore();
 
+  // Current language's function parameters for custom input editor
+  const currentSignature = problem?.signatures?.find((s) => s.language === language);
+  const currentParams = currentSignature?.parameters_json || [];
+
+  // Draggable split between editor and results panel
+  const splitContainerRef = useRef<HTMLDivElement>(null);
+  const isDraggingRef = useRef(false);
+  const [editorFlex, setEditorFlex] = useState(3);
+  const [resultsFlex, setResultsFlex] = useState(1);
+
+  const handleSplitMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    isDraggingRef.current = true;
+    document.body.style.cursor = 'row-resize';
+    document.body.style.userSelect = 'none';
+
+    const handleMove = (ev: MouseEvent) => {
+      if (!isDraggingRef.current || !splitContainerRef.current) return;
+      const rect = splitContainerRef.current.getBoundingClientRect();
+      const y = ev.clientY - rect.top;
+      const ratio = Math.max(0.15, Math.min(0.85, y / rect.height));
+      const editor = Math.round(ratio * 10);
+      setEditorFlex(editor);
+      setResultsFlex(10 - editor);
+    };
+
+    const handleUp = () => {
+      isDraggingRef.current = false;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      document.removeEventListener('mousemove', handleMove);
+      document.removeEventListener('mouseup', handleUp);
+    };
+
+    document.addEventListener('mousemove', handleMove);
+    document.addEventListener('mouseup', handleUp);
+  };
+
   // Load problem
   useEffect(() => {
     if (!problemId) return;
     setLoading(true);
     problemsApi.getProblem(problemId)
       .then((res) => {
-        const p = res.data;
-        setProblem(p);
-        const langs = p.signatures?.map((s) => s.language) || [];
-        setAvailableLanguages(langs);
-        if (langs.length > 0) {
-          setLanguage(langs[0]);
-          const sig = p.signatures?.find((s) => s.language === langs[0]);
-          if (sig) {
-            setInitialTemplate(sig.code_template);
-            setCode(sig.code_template);
-          }
-        }
+        setProblem(res.data);
       })
       .catch((err) => message.error(err?.message || '加载题目失败'))
       .finally(() => setLoading(false));
   }, [problemId]);
 
-  // Load draft on mount and language change
+  // Reset editor & results state when assignment/problem changes (stale state guard for global store)
+  useEffect(() => {
+    setTestResults([]);
+    setCompileError(null);
+    setCustomInputJson('{}');
+    setCustomRunResult(null);
+    setCustomRunError(null);
+  }, [assignmentId, problemId]);
+
+  // Load draft on mount and language change, fallback to code template
   useEffect(() => {
     if (!problemId || !assignmentId || !language) return;
+    if (!initialTemplate) return; // wait for template to be ready
     submissionsApi.getDraft(problemId, { assignment_id: assignmentId, language })
       .then((res) => {
         if (res.data.code) {
           setCode(res.data.code);
+        } else {
+          setCode(initialTemplate);
         }
       })
-      .catch(() => {});
-  }, [problemId, assignmentId, language]);
+      .catch(() => setCode(initialTemplate));
+  }, [problemId, assignmentId, language, initialTemplate]);
 
-  // Fetch assignment problems for navigation
+  // Fetch assignment problems and course languages for language filtering
   useEffect(() => {
     if (!assignmentId) return;
     assignmentsApi.getAssignment(assignmentId)
@@ -85,9 +127,39 @@ export default function ProblemSolve() {
         setAssignmentProblems(problemIds);
         const idx = problemIds.indexOf(problemId || '');
         setCurrentProblemIndex(idx);
+
+        // Fetch course to get supported languages
+        coursesApi.getCourse(res.data.course_id)
+          .then((courseRes) => {
+            setCourseLanguages(courseRes.data.languages || []);
+          })
+          .catch(() => {});
       })
       .catch(() => {});
   }, [assignmentId, problemId]);
+
+  // Compute available languages filtered by course languages
+  useEffect(() => {
+    if (!problem) return;
+    const langs = problem.signatures?.map((s) => s.language) || [];
+    const filtered = courseLanguages.length > 0
+      ? langs.filter((l) => courseLanguages.includes(l))
+      : langs;
+    setAvailableLanguages(filtered);
+
+    if (filtered.length > 0) {
+      if (!filtered.includes(language)) {
+        const newLang = filtered[0];
+        setLanguage(newLang);
+      }
+      // Always set the code template for the current/first language
+      const currentLang = filtered.includes(language) ? language : filtered[0];
+      const sig = problem.signatures?.find((s) => s.language === currentLang);
+      if (sig) {
+        setInitialTemplate(sig.code_template);
+      }
+    }
+  }, [problem, courseLanguages]);
 
   // Auto-save draft (debounced 3s)
   const debouncedSave = useDebouncedCallback((codeVal: string) => {
@@ -107,18 +179,10 @@ export default function ProblemSolve() {
 
   const handleLanguageChange = (lang: string) => {
     setLanguage(lang);
+    setCustomInputJson('{}');
     const sig = problem?.signatures?.find((s) => s.language === lang);
     if (sig) {
       setInitialTemplate(sig.code_template);
-      if (problemId && assignmentId) {
-        submissionsApi.getDraft(problemId, { assignment_id: assignmentId, language: lang })
-          .then((res) => {
-            setCode(res.data.code || sig.code_template);
-          })
-          .catch(() => setCode(sig.code_template));
-      } else {
-        setCode(sig.code_template);
-      }
     }
   };
 
@@ -338,13 +402,32 @@ export default function ProblemSolve() {
             <Button icon={<UndoOutlined />} onClick={handleReset} size="small">重置代码</Button>
           </div>
 
-          {/* Editor */}
-          <div style={{ flex: 1, minHeight: 0 }}>
-            <CodeEditor value={code} language={language} onChange={handleCodeChange} height="100%" />
-          </div>
+          {/* Resizable split: editor + results */}
+          <div ref={splitContainerRef} style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
+            {/* Editor */}
+            <div style={{ flex: editorFlex, minHeight: 0 }}>
+              <CodeEditor value={code} language={language} onChange={handleCodeChange} height="100%" />
+            </div>
 
-          {/* Results panel */}
-          <div style={{ height: 200, overflow: 'auto', borderTop: '1px solid #ebebeb', padding: 12, background: '#ffffff' }}>
+            {/* Drag handle */}
+            <div
+              onMouseDown={handleSplitMouseDown}
+              style={{
+                flex: '0 0 6px',
+                cursor: 'row-resize',
+                background: '#f0f0f0',
+                borderTop: '1px solid #e0e0e0',
+                borderBottom: '1px solid #e0e0e0',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <div style={{ width: 24, height: 2, borderRadius: 1, background: '#bbb' }} />
+            </div>
+
+            {/* Results panel */}
+            <div style={{ flex: resultsFlex, overflow: 'auto', padding: 12, background: '#ffffff' }}>
             <Tabs
               size="small"
               items={[
@@ -452,6 +535,7 @@ export default function ProblemSolve() {
               ]}
             />
           </div>
+          </div>
 
           {/* Bottom action bar */}
           <div style={{ padding: '8px 16px', borderTop: '1px solid #ebebeb', display: 'flex', justifyContent: 'space-between', background: '#ffffff' }}>
@@ -477,15 +561,10 @@ export default function ProblemSolve() {
         onCancel={() => setCustomInputOpen(false)}
         footer={null}
       >
-        <div style={{ marginBottom: 8 }}>
-          <Text strong>JSON 输入:</Text>
-        </div>
-        <Input.TextArea
-          rows={4}
+        <InputParamsEditor
           value={customInputJson}
-          onChange={(e) => setCustomInputJson(e.target.value)}
-          placeholder='{"key": "value"}'
-          style={{ fontFamily: 'monospace' }}
+          onChange={(v) => setCustomInputJson(v)}
+          parameters={currentParams}
         />
         <div style={{ marginTop: 12, marginBottom: 12 }}>
           <Button type="primary" onClick={handleCustomRun} loading={customRunLoading}>

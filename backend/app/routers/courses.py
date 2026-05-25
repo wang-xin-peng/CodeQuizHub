@@ -39,6 +39,13 @@ async def create_course(
             break
         invite_code = generate_invite_code()
 
+    # Ensure teacher has set their nickname
+    if not teacher.nickname:
+        raise BusinessError(
+            ErrorCode.NICKNAME_REQUIRED,
+            "请先在个人资料中设置昵称后再创建课程",
+        )
+
     course = Course(
         name=body.name,
         description=body.description,
@@ -93,6 +100,16 @@ async def list_courses(
     result = await db.execute(query)
     courses = result.scalars().all()
 
+    # Batch fetch teacher info
+    teacher_ids = list({c.teacher_id for c in courses})
+    teacher_map = {}
+    if teacher_ids:
+        teachers_result = await db.execute(
+            select(User).where(User.id.in_(teacher_ids))
+        )
+        for t in teachers_result.scalars().all():
+            teacher_map[str(t.id)] = t.nickname
+
     items = [
         {
             "id": str(c.id),
@@ -102,6 +119,7 @@ async def list_courses(
             "invite_code": c.invite_code,
             "status": c.status,
             "teacher_id": str(c.teacher_id),
+            "teacher_name": teacher_map.get(str(c.teacher_id), "未知"),
             "created_at": c.created_at.isoformat(),
             "updated_at": c.updated_at.isoformat(),
         }
@@ -123,6 +141,13 @@ async def get_course(
     if not course:
         raise NotFoundError("course", course_id)
 
+    # Get teacher info
+    teacher_result = await db.execute(
+        select(User).where(User.id == course.teacher_id)
+    )
+    teacher = teacher_result.scalar_one_or_none()
+    teacher_name = teacher.nickname if teacher else "未知"
+
     return success_response({
         "id": str(course.id),
         "name": course.name,
@@ -131,6 +156,7 @@ async def get_course(
         "invite_code": course.invite_code,
         "status": course.status,
         "teacher_id": str(course.teacher_id),
+        "teacher_name": teacher_name,
         "created_at": course.created_at.isoformat(),
         "updated_at": course.updated_at.isoformat(),
     })
@@ -190,10 +216,10 @@ async def delete_course(
     if not course:
         raise NotFoundError("course", course_id)
 
-    course.status = "archived"
+    await db.delete(course)
     await db.flush()
 
-    return success_response(message="课程已归档")
+    return success_response(message="课程已删除")
 
 
 @router.post("/join")

@@ -57,7 +57,7 @@ export default function GradeOverview() {
   ].filter(d => d.value > 0);
 
   const handleExport = (format: 'xlsx' | 'csv') => {
-    const token = localStorage.getItem('token');
+    const token = sessionStorage.getItem('token');
     const url = gradesApi.getExportUrl(courseId!, format);
     fetch(url, { headers: { Authorization: `Bearer ${token}` } })
       .then((res) => res.blob())

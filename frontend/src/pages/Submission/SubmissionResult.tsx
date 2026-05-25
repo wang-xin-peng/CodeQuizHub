@@ -176,21 +176,28 @@ export default function SubmissionResult() {
               }}>
                 <div style={{ fontWeight: 500, marginBottom: 10 }}>
                   用例 {firstError.test_case_order + 1}
+                  {!firstError.is_public && (
+                    <Tag style={{ marginLeft: 8 }} color="default">非公开</Tag>
+                  )}
                 </div>
-                {firstError.input != null && (
-                  <div style={{ marginBottom: 6 }}>
-                    <Text type="secondary" style={{ fontSize: 12 }}>输入: </Text>
-                    <code style={{ fontSize: 12 }}>{JSON.stringify(firstError.input)}</code>
-                  </div>
+                {firstError.is_public && (
+                  <>
+                    {firstError.input != null && (
+                      <div style={{ marginBottom: 6 }}>
+                        <Text type="secondary" style={{ fontSize: 12 }}>输入: </Text>
+                        <code style={{ fontSize: 12 }}>{JSON.stringify(firstError.input)}</code>
+                      </div>
+                    )}
+                    <div style={{ marginBottom: 6 }}>
+                      <Text type="secondary" style={{ fontSize: 12 }}>输出: </Text>
+                      <code style={{ fontSize: 12, color: '#cf1322' }}>{JSON.stringify(firstError.actual)}</code>
+                    </div>
+                    <div style={{ marginBottom: 6 }}>
+                      <Text type="secondary" style={{ fontSize: 12 }}>预期: </Text>
+                      <code style={{ fontSize: 12, color: '#52c41a' }}>{JSON.stringify(firstError.expected)}</code>
+                    </div>
+                  </>
                 )}
-                <div style={{ marginBottom: 6 }}>
-                  <Text type="secondary" style={{ fontSize: 12 }}>输出: </Text>
-                  <code style={{ fontSize: 12, color: '#cf1322' }}>{JSON.stringify(firstError.actual)}</code>
-                </div>
-                <div style={{ marginBottom: 6 }}>
-                  <Text type="secondary" style={{ fontSize: 12 }}>预期: </Text>
-                  <code style={{ fontSize: 12, color: '#52c41a' }}>{JSON.stringify(firstError.expected)}</code>
-                </div>
               </div>
             )}
 
@@ -225,7 +232,7 @@ export default function SubmissionResult() {
                   language={s!.language || 'python'}
                   onChange={() => {}}
                   readOnly
-                  height="300px"
+                  height="600px"
                 />
               </div>
             </div>

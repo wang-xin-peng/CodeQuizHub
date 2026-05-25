@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { Layout, Menu, Dropdown, Avatar, Space, Typography, message } from 'antd';
 import {
@@ -24,6 +24,20 @@ export default function AppLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout, accounts, switchAccount } = useAuthStore();
+
+  // Sync Zustand state from sessionStorage on mount (belt-and-suspenders).
+  // Each tab has its own sessionStorage, so there is no cross-tab interference.
+  useEffect(() => {
+    const s = useAuthStore.getState();
+    const storedToken = sessionStorage.getItem('token');
+    const storedUser = sessionStorage.getItem('user');
+    if (storedToken && storedUser) {
+      const parsed = JSON.parse(storedUser);
+      if (s.user?.id !== parsed.id || s.token !== storedToken) {
+        s.loadUser();
+      }
+    }
+  }, []);
 
   const isTeacher = user?.role === 'teacher' || user?.role === 'admin';
   const isAdmin = user?.role === 'admin';

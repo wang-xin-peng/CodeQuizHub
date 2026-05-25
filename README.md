@@ -35,12 +35,12 @@ docker compose --profile sandbox build
 
 ## 环境变量
 
-| 变量 | 默认值 | 说明 |
-|------|--------|------|
-| `DB_PASSWORD` | `codequizhub` | 数据库密码 |
-| `JWT_SECRET` | _(需设置)_ | JWT 签名密钥（生产环境必须修改） |
-| `DEBUG` | `false` | 调试模式 |
-| `VITE_CDN_BASE` | `/` | 前端静态资源 CDN 地址 |
+| 变量              | 默认值          | 说明                             |
+| ----------------- | --------------- | -------------------------------- |
+| `DB_PASSWORD`   | `codequizhub` | 数据库密码                       |
+| `JWT_SECRET`    | _(需设置)_    | JWT 签名密钥（生产环境必须修改） |
+| `DEBUG`         | `false`       | 调试模式                         |
+| `VITE_CDN_BASE` | `/`           | 前端静态资源 CDN 地址            |
 
 ## 部署
 
@@ -93,6 +93,7 @@ python scripts/security_audit.py
 ## API 文档
 
 FastAPI 自动生成 OpenAPI 文档：
+
 - Swagger UI: `/api/docs`
 - OpenAPI JSON: `/api/openapi.json`
 

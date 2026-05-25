@@ -23,6 +23,7 @@ export interface Course {
   invite_code: string;
   status: string;
   teacher_id: string;
+  teacher_name?: string;
   created_at: string;
   updated_at: string;
 }

@@ -37,9 +37,9 @@ export default function AssignmentDetail() {
   const handlePublish = async () => {
     if (!id) return;
     try {
-      await assignmentsApi.updateAssignment(id, { status: 'published' });
+      const res = await assignmentsApi.updateAssignment(id, { status: 'published' });
       message.success('作业已发布，学生现在可以查看');
-      setAssignment((prev) => prev ? { ...prev, status: 'published' } : null);
+      setAssignment(res.data);
     } catch (err: any) {
       message.error(err?.message || '发布失败');
     }
@@ -50,7 +50,8 @@ export default function AssignmentDetail() {
 
   const statusMap: Record<string, { color: string; label: string }> = {
     draft: { color: 'default', label: '草稿' },
-    published: { color: 'success', label: '进行中' },
+    not_started: { color: 'processing', label: '未开始' },
+    ongoing: { color: 'success', label: '进行中' },
     closed: { color: 'error', label: '已关闭' },
   };
 
@@ -62,10 +63,13 @@ export default function AssignmentDetail() {
       <Title level={4} style={{ marginBottom: 24 }}>{assignment.title}</Title>
 
       <Card style={{ marginBottom: 24 }}
-        extra={
+        title={
           user?.role === 'teacher' && assignment.status === 'draft'
-            ? <Button type="primary" onClick={handlePublish}>发布作业</Button>
-            : null
+            ? <Space>
+                <Button onClick={() => navigate(`/assignments/${id}/edit`)}>编辑</Button>
+                <Button type="primary" onClick={handlePublish}>发布作业</Button>
+              </Space>
+            : undefined
         }
       >
         <Descriptions column={{ xs: 1, sm: 2 }}>
@@ -92,7 +96,7 @@ export default function AssignmentDetail() {
         renderItem={(problem, idx) => (
           <List.Item
             actions={
-              user?.role === 'student' && assignment.status === 'published'
+              user?.role === 'student' && (assignment.status === 'ongoing' || assignment.status === 'published')
                 ? [
                     <Button type="primary" onClick={() => navigate(`/solve/${id}/${problem.id}`)}>
                       做题

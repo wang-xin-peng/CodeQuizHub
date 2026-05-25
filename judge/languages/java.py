@@ -2,7 +2,14 @@
 
 
 def assemble_java(prelude: str, user_code: str, driver: str) -> str:
-    parts = []
+    # Common imports (like LeetCode) — prepended so they apply to all classes
+    parts = [
+        "import org.json.*;",
+        "import java.util.*;",
+        "import java.io.*;",
+        "import java.math.*;",
+        "",
+    ]
     if prelude:
         parts.append(f"// === Prelude ===\n{prelude}")
     parts.append(f"// === Solution ===\n{user_code}")

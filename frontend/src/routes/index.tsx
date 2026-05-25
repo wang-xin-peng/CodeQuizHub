@@ -64,6 +64,7 @@ export const router = createBrowserRouter([
           { path: '/problems/:id', element: <SuspenseWrapper><ProblemDetail /></SuspenseWrapper> },
           { path: '/problems/:id/edit', element: <SuspenseWrapper><ProblemEdit /></SuspenseWrapper> },
           { path: '/assignments/create', element: <SuspenseWrapper><AssignmentCreate /></SuspenseWrapper> },
+          { path: '/assignments/:id/edit', element: <SuspenseWrapper><AssignmentCreate /></SuspenseWrapper> },
           { path: '/assignments/:id', element: <SuspenseWrapper><AssignmentDetail /></SuspenseWrapper> },
           { path: '/grades', element: <SuspenseWrapper><GradesList /></SuspenseWrapper> },
           { path: '/grades/:courseId', element: <SuspenseWrapper><GradeOverview /></SuspenseWrapper> },

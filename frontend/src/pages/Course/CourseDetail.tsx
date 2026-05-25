@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Button, Card, Descriptions, Table, Tabs, Tag, Typography, message, Popconfirm } from 'antd';
+import { Button, Card, Descriptions, Space, Table, Tabs, Tag, Typography, message, Popconfirm } from 'antd';
 import { useAuthStore } from '../../store/authStore';
 import * as coursesApi from '../../api/courses';
 import * as assignmentsApi from '../../api/assignments';
@@ -49,15 +49,49 @@ export default function CourseDetail() {
     }
   };
 
+  const handleCloseCourse = async () => {
+    if (!id) return;
+    try {
+      await coursesApi.updateCourse(id, { status: 'archived' });
+      message.success('课程已关闭');
+      // Refresh course data
+      const res = await coursesApi.getCourse(id);
+      setCourse(res.data);
+    } catch (err: any) {
+      message.error(err?.message || '关闭失败');
+    }
+  };
+
+  const handleDeleteCourse = async () => {
+    if (!id) return;
+    try {
+      await coursesApi.deleteCourse(id);
+      message.success('课程已删除');
+      navigate('/courses');
+    } catch (err: any) {
+      message.error(err?.message || '删除失败');
+    }
+  };
+
   const handlePublish = async (assignmentId: string) => {
     try {
-      await assignmentsApi.updateAssignment(assignmentId, { status: 'published' });
+      const res = await assignmentsApi.updateAssignment(assignmentId, { status: 'published' });
       message.success('作业已发布');
       setAssignments((prev) =>
-        prev.map((a) => (a.id === assignmentId ? { ...a, status: 'published' } : a))
+        prev.map((a) => (a.id === assignmentId ? { ...a, status: res.data.status } : a))
       );
     } catch (err: any) {
       message.error(err?.message || '发布失败');
+    }
+  };
+
+  const handleDeleteAssignment = async (assignmentId: string) => {
+    try {
+      await assignmentsApi.deleteAssignment(assignmentId);
+      message.success('作业已删除');
+      setAssignments((prev) => prev.filter((a) => a.id !== assignmentId));
+    } catch (err: any) {
+      message.error(err?.message || '删除失败');
     }
   };
 
@@ -70,8 +104,8 @@ export default function CourseDetail() {
       dataIndex: 'status',
       key: 'status',
       render: (status: string) => {
-        const colors: Record<string, string> = { draft: 'default', published: 'success', closed: 'error' };
-        const labels: Record<string, string> = { draft: '草稿', published: '进行中', closed: '已关闭' };
+        const colors: Record<string, string> = { draft: 'default', not_started: 'processing', ongoing: 'success', closed: 'error' };
+        const labels: Record<string, string> = { draft: '草稿', not_started: '未开始', ongoing: '进行中', closed: '已关闭' };
         return <Tag color={colors[status]}>{labels[status] || status}</Tag>;
       },
     },
@@ -93,8 +127,16 @@ export default function CourseDetail() {
       render: (_: any, record: Assignment) => (
         <span>
           <Button type="link" onClick={() => navigate(`/assignments/${record.id}`)}>查看</Button>
+          {isTeacher && (
+            <Button type="link" onClick={() => navigate(`/assignments/${record.id}/edit`)}>编辑</Button>
+          )}
           {isTeacher && record.status === 'draft' && (
             <Button type="link" style={{ color: 'green' }} onClick={() => handlePublish(record.id)}>发布</Button>
+          )}
+          {isTeacher && (
+            <Popconfirm title="确定删除此作业？此操作不可恢复。" onConfirm={() => handleDeleteAssignment(record.id)}>
+              <Button type="link" danger>删除</Button>
+            </Popconfirm>
           )}
         </span>
       ),
@@ -121,7 +163,21 @@ export default function CourseDetail() {
       <BackButton path="/courses" />
       <Title level={4} style={{ marginBottom: 24 }}>{course.name}</Title>
 
-      <Card style={{ marginBottom: 24 }}>
+      <Card
+        style={{ marginBottom: 24 }}
+        extra={isTeacher && (
+          <Space>
+            {course.status === 'active' && (
+              <Popconfirm title="关闭后学生将无法加入，确定关闭？" onConfirm={handleCloseCourse}>
+                <Button danger>关闭课程</Button>
+              </Popconfirm>
+            )}
+            <Popconfirm title="确定删除课程？此操作不可恢复，所有关联数据将被清空。" onConfirm={handleDeleteCourse}>
+              <Button type="primary" danger>删除课程</Button>
+            </Popconfirm>
+          </Space>
+        )}
+      >
         <Descriptions column={{ xs: 1, sm: 2 }}>
           <Descriptions.Item label="描述">
             {course.description || <Text type="secondary">无</Text>}
@@ -133,9 +189,12 @@ export default function CourseDetail() {
             <code>{course.invite_code}</code>
           </Descriptions.Item>
           <Descriptions.Item label="状态">
-            <Tag color={course.status === 'active' ? 'success' : 'default'}>
-              {course.status === 'active' ? '进行中' : '已归档'}
+            <Tag color={course.status === 'active' ? 'success' : 'warning'}>
+              {course.status === 'active' ? '进行中' : '已关闭'}
             </Tag>
+          </Descriptions.Item>
+          <Descriptions.Item label="创建老师">
+            {course.teacher_name || <Text type="secondary">未知</Text>}
           </Descriptions.Item>
         </Descriptions>
       </Card>

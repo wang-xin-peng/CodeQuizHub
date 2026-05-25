@@ -75,8 +75,8 @@ export default function CourseList() {
               title={
                 <Space>
                   <Text strong style={{ fontSize: 16 }}>{course.name}</Text>
-                  <Tag color={course.status === 'active' ? 'success' : 'default'}>
-                    {course.status === 'active' ? '进行中' : '已归档'}
+                  <Tag color={course.status === 'active' ? 'success' : 'warning'}>
+                    {course.status === 'active' ? '进行中' : '已关闭'}
                   </Tag>
                 </Space>
               }
@@ -89,6 +89,11 @@ export default function CourseList() {
                   <Tag key={lang}>{lang}</Tag>
                 ))}
               </Space>
+              <div style={{ marginTop: 8 }}>
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  老师: {course.teacher_name || '未知'}
+                </Text>
+              </div>
               {isTeacher && (
                 <div style={{ marginTop: 12 }}>
                   <Text type="secondary" style={{ fontSize: 12 }}>

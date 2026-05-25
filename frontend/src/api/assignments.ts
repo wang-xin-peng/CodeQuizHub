@@ -19,7 +19,7 @@ export async function getAssignment(id: string): Promise<ApiResponse<Assignment>
 
 export async function updateAssignment(
   id: string,
-  data: Partial<Assignment>
+  data: Partial<Assignment> & { problem_ids?: string[] }
 ): Promise<ApiResponse<Assignment>> {
   return client.put(`/assignments/${id}`, data);
 }
@@ -29,4 +29,8 @@ export async function getCourseAssignments(
   params?: { page?: number; page_size?: number }
 ): Promise<ApiResponse<PaginatedData<Assignment>>> {
   return client.get(`/assignments/course/${courseId}`, { params });
+}
+
+export async function deleteAssignment(id: string): Promise<ApiResponse<void>> {
+  return client.delete(`/assignments/${id}`);
 }

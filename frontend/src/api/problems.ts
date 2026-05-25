@@ -33,6 +33,7 @@ export async function getProblems(params?: {
   page_size?: number;
   difficulty?: string;
   language?: string;
+  languages?: string;
   tag?: string;
 }): Promise<ApiResponse<PaginatedData<Problem>>> {
   return client.get('/problems', { params });

@@ -6,6 +6,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import * as problemsApi from '../../api/problems';
 import BackButton from '../../components/BackButton/BackButton';
+import InputParamsEditor from '../../components/InputParamsEditor/InputParamsEditor';
 
 const { Title } = Typography;
 const { TextArea } = Input;
@@ -18,6 +19,7 @@ export default function ProblemEdit() {
   const [form] = Form.useForm();
   const watchedDescription = Form.useWatch('description', form);
   const watchedSignatures = Form.useWatch('signatures', form);
+  const sigParams = watchedSignatures?.[0]?.parameters;
 
   // Load existing problem data
   useEffect(() => {
@@ -71,6 +73,45 @@ export default function ProblemEdit() {
     if (!id) return;
     setLoading(true);
     try {
+      const rawSignatures = Array.isArray(values.signatures) ? values.signatures : [];
+      const signaturesSafe = rawSignatures.map((sig: any) => {
+        const obj = (sig && typeof sig === 'object') ? sig : {};
+        const entry: Record<string, any> = {
+          language: String(obj.language || ''),
+          function_name: String(obj.function_name || ''),
+          parameters: Array.isArray(obj.parameters) ? obj.parameters : [],
+          return_type: String(obj.return_type || ''),
+          code_template: String(obj.code_template || ''),
+          prelude_code: String(obj.prelude_code || ''),
+          driver_template: String(obj.driver_template || ''),
+        };
+        if (obj.id) entry.id = obj.id;
+        return entry;
+      });
+
+      // Validate each signature has a language before sending
+      const emptyLangIdx = signaturesSafe.findIndex(s => !s.language);
+      if (emptyLangIdx !== -1) {
+        // eslint-disable-next-line no-console
+        console.error('[ProblemEdit] Signature with empty language detected at index', emptyLangIdx);
+        message.error(`签名 #${emptyLangIdx + 1} 的编程语言不能为空，请为每个签名选择语言`);
+        setLoading(false);
+        return;
+      }
+
+      const rawTestCases = Array.isArray(values.test_cases) ? values.test_cases : [];
+      const testCasesSafe = rawTestCases.map((tc: any) => {
+        const obj = (tc && typeof tc === 'object') ? tc : {};
+        const entry: Record<string, any> = {
+          input_params: (() => { try { return JSON.parse(String(obj.input_params || '{}')); } catch { return {}; } })(),
+          expected_output: (() => { try { return JSON.parse(String(obj.expected_output || 'null')); } catch { return null; } })(),
+          is_public: !!obj.is_public,
+          description: String(obj.description || ''),
+        };
+        if (obj.id) entry.id = obj.id;
+        return entry;
+      });
+
       const payload = {
         title: values.title,
         description: values.description,
@@ -79,49 +120,50 @@ export default function ProblemEdit() {
         memory_limit: values.memory_limit,
         tags: values.tags || [],
         compare_mode: values.compare_mode,
-        signatures: values.signatures.map((sig: any) => {
-          const entry: Record<string, any> = {
-            language: sig.language,
-            function_name: sig.function_name,
-            parameters: sig.parameters || [],
-            return_type: sig.return_type,
-            code_template: sig.code_template,
-            prelude_code: sig.prelude_code || '',
-            driver_template: sig.driver_template || '',
-          };
-          if (sig.id) entry.id = sig.id;
-          return entry;
-        }),
-        test_cases: values.test_cases.map((tc: any) => {
-          const entry: Record<string, any> = {
-            input_params: JSON.parse(tc.input_params),
-            expected_output: JSON.parse(tc.expected_output),
-            is_public: tc.is_public || false,
-            description: tc.description || '',
-          };
-          if (tc.id) entry.id = tc.id;
-          return entry;
-        }),
+        signatures: signaturesSafe,
+        test_cases: testCasesSafe,
       };
+      // eslint-disable-next-line no-console
+      console.log('[ProblemEdit] Sending payload:', JSON.stringify(payload, null, 2));
       await problemsApi.updateProblem(id, payload as any);
       message.success('题目更新成功');
       navigate('/problems');
     } catch (err: any) {
-      message.error(err?.response?.data?.message || err?.message || '更新失败');
+      // eslint-disable-next-line no-console
+      console.error('[ProblemEdit] onFinish error:', err);
+      if (err && typeof err === 'object' && err.stack) {
+        // eslint-disable-next-line no-console
+        console.error('[ProblemEdit] stack:', err.stack);
+      }
+      // Format user-friendly error message
+      const serverMsg = err?.response?.data?.message || err?.message || '';
+      if (serverMsg.includes('at least 1 character') || serverMsg.includes('language')) {
+        message.error('保存失败：存在编程语言为空的签名，请为每个签名选择语言后再试');
+      } else {
+        message.error(serverMsg || '更新失败');
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  if (fetching) {
-    return <Spin size="large" style={{ display: 'block', margin: '100px auto' }} />;
-  }
+  const onFinishFailed = (errorInfo: any) => {
+    // eslint-disable-next-line no-console
+    console.error('[ProblemEdit] Form validation failed:', errorInfo);
+    const messages = errorInfo?.errorFields?.map((f: any) => f.errors?.join('; ')).filter(Boolean).join('\n');
+    if (messages) {
+      message.error(`表单验证失败:\n${messages}`);
+    } else {
+      message.error('表单验证失败，请检查填写内容');
+    }
+  };
 
   return (
     <div>
       <Title level={4}>编辑题目</Title>
       <BackButton path="/problems" />
-      <Form form={form} layout="vertical" onFinish={onFinish}>
+      <Spin spinning={fetching}>
+        <Form form={form} layout="vertical" onFinish={onFinish} onFinishFailed={onFinishFailed} style={{ width: '100%' }}>
         <Card title="基本信息" style={{ marginBottom: 16 }}>
           <Form.Item name="title" label="题目标题" rules={[{ required: true }]}>
             <Input placeholder="如: 两数之和" />
@@ -162,15 +204,21 @@ export default function ProblemEdit() {
               <>
                 <Tabs
                   type="editable-card"
-                  onEdit={(_, action) => { if (action === 'add') add({ language: 'python' }); }}
-                  items={fields.map((field, idx) => ({
-                    key: String(idx),
-                    label: watchedSignatures?.[field.name]?.language
-                      ? `${watchedSignatures[field.name].language}${watchedSignatures[field.name].function_name ? ` - ${watchedSignatures[field.name].function_name}` : ''}`
+                  onEdit={(targetKey, action) => {
+                    if (action === 'add') add({ language: 'python' });
+                    else if (action === 'remove') remove(Number(targetKey));
+                  }}
+                  items={fields.map((field, idx) => {
+                    const sigData = form.getFieldValue(['signatures', field.name]);
+                    const langMap: Record<string, string> = { python: 'Python', java: 'Java', c: 'C', cpp: 'C++' };
+                    return {
+                    key: String(field.name),
+                    label: sigData?.language
+                      ? `${langMap[sigData.language] || sigData.language}${sigData.function_name ? ` - ${sigData.function_name}` : ''}`
                       : `签名${idx + 1}`,
                     closable: fields.length > 1,
                     children: (
-                      <div>
+                      <div style={{ width: '100%', minWidth: 500 }}>
                         <Space style={{ marginBottom: 8 }}>
                           <Form.Item name={[field.name, 'language']} rules={[{ required: true }]} noStyle>
                             <Select style={{ width: 100 }} options={[{ label: 'Python', value: 'python' }, { label: 'Java', value: 'java' }, { label: 'C', value: 'c' }, { label: 'C++', value: 'cpp' }]} />
@@ -184,17 +232,17 @@ export default function ProblemEdit() {
                           {fields.length > 1 && <MinusCircleOutlined onClick={() => remove(field.name)} />}
                         </Space>
                         <Form.Item name={[field.name, 'code_template']} label="代码模板" rules={[{ required: true }]}>
-                          <TextArea rows={6} placeholder="学生看到的初始代码" style={{ width: '100%' }} />
+                          <TextArea rows={10} placeholder="学生看到的初始代码" style={{ width: '100%' }} />
                         </Form.Item>
                         <Form.Item name={[field.name, 'prelude_code']} label="Prelude 代码"
                           tooltip="定义题目需要但学生不应手写的数据结构（如 ListNode、TreeNode）。简单题目（如只涉及基本类型 List[int]、int）不需要填，系统会自动处理。"
                         >
-                          <TextArea rows={3} placeholder="预置代码（数据结构等），简单题可留空" style={{ width: '100%' }} />
+                          <TextArea rows={6} placeholder="预置代码（数据结构等），简单题可留空" style={{ width: '100%' }} />
                         </Form.Item>
                         <Form.Item name={[field.name, 'driver_template']} label="Driver 模板"
                           tooltip="控制如何把 JSON 测试用例解包后调用学生函数并输出结果。对于 List[int]、int 等标准类型系统会自动生成，不需要填。只有当参数类型复杂（如嵌套 JSON、树结构）时才需要自定义。"
                         >
-                          <TextArea rows={4} placeholder="驱动代码模板，标准类型可留空，系统自动生成" style={{ width: '100%' }} />
+                          <TextArea rows={8} placeholder="驱动代码模板，标准类型可留空，系统自动生成" style={{ width: '100%' }} />
                         </Form.Item>
                         <Form.List name={[field.name, 'parameters']}>
                           {(paramFields, { add: addParam, remove: removeParam }) => (
@@ -222,7 +270,8 @@ export default function ProblemEdit() {
                         </Form.List>
                       </div>
                     ),
-                  }))}
+                  };
+                })}
                 />
               </>
             )}
@@ -237,11 +286,11 @@ export default function ProblemEdit() {
                   <Card key={field.key} size="small" title={`用例 ${idx + 1}`} style={{ marginBottom: 8 }}
                     extra={fields.length > 1 && <MinusCircleOutlined onClick={() => remove(field.name)} />}
                   >
-                    <Form.Item name={[field.name, 'input_params']} label="输入 (JSON)" rules={[{ required: true }]}>
-                      <TextArea rows={3} placeholder='{"nums": [2, 7, 11, 15], "target": 9}' style={{ width: '100%' }} />
+                    <Form.Item name={[field.name, 'input_params']} label={sigParams?.length ? '输入参数' : '输入 (JSON)'} rules={[{ required: true }]}>
+                      <InputParamsEditor parameters={sigParams} placeholder='{"nums": [2, 7, 11, 15], "target": 9}' />
                     </Form.Item>
-                    <Form.Item name={[field.name, 'expected_output']} label="期望输出 (JSON)" rules={[{ required: true }]}>
-                      <TextArea rows={3} placeholder='[0, 1]' style={{ width: '100%' }} />
+                    <Form.Item name={[field.name, 'expected_output']} label="期望输出" rules={[{ required: true }]}>
+                      <InputParamsEditor placeholder='[0, 1] 或 true 或 42 等' />
                     </Form.Item>
                     <Space>
                       <Form.Item name={[field.name, 'is_public']} valuePropName="checked" label="公开">
@@ -268,6 +317,7 @@ export default function ProblemEdit() {
           </Space>
         </Form.Item>
       </Form>
+      </Spin>
     </div>
   );
 }

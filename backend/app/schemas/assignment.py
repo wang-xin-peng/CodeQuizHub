@@ -19,6 +19,8 @@ class AssignmentUpdateRequest(BaseModel):
     start_time: datetime | None = None
     end_time: datetime | None = None
     status: str | None = None
+    problem_ids: list[str] | None = None
+    score_weights: list[int] | None = None
 
 
 class AssignmentResponse(BaseModel):

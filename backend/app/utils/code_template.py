@@ -100,7 +100,7 @@ def _generate_python_template(
     parameters: list[dict[str, Any]],
     return_type: str,
 ) -> str:
-    """Generate a Python code template."""
+    """Generate a Python code template with a Solution class."""
     params = []
     for p in parameters:
         ptype = _map_type("python", p["type"])
@@ -109,24 +109,23 @@ def _generate_python_template(
     params_str = ", ".join(params)
     ret = _map_type("python", return_type)
 
-    lines = [f"def {function_name}({params_str}) -> {ret}:"]
+    lines = ["class Solution:"]
+    lines.append(f"    def {function_name}(self, {params_str}) -> {ret}:")
     if ret == "None" or ret == "void":
-        lines.append("    pass")
+        lines.append("        pass")
     else:
-        lines.append("    # TODO: implement your solution here")
+        lines.append("        # TODO: implement your solution here")
         # Add a default return value based on type
         if ret in ("int", "float"):
-            lines.append("    return 0")
+            lines.append("        return 0")
         elif ret == "bool":
-            lines.append("    return False")
+            lines.append("        return False")
         elif ret in ("str", "List[str]"):
-            lines.append('    return ""')
+            lines.append('        return ""')
         elif ret in ("list[int]", "List[int]"):
-            lines.append("    return []")
-        elif ret == "None" or ret == "void":
-            lines.append("    pass")
+            lines.append("        return []")
         else:
-            lines.append("    pass")
+            lines.append("        pass")
     return "\n".join(lines) + "\n"
 
 
@@ -192,25 +191,28 @@ def _generate_cpp_template(
     lines.append('#include <iostream>')
     lines.append('using namespace std;')
     lines.append('')
-    lines.append(f'{ret} {function_name}({params_str}) {{')
+    lines.append('class Solution {')
+    lines.append('public:')
+    lines.append(f'    {ret} {function_name}({params_str}) {{')
     if ret == "void":
-        lines.append("    // TODO: implement your solution here")
-        lines.append("}")
+        lines.append("        // TODO: implement your solution here")
+        lines.append("    }")
     elif ret in ("int", "long long", "float", "double", "char"):
-        lines.append("    // TODO: implement your solution here")
-        lines.append("    return 0;")
-        lines.append("}")
+        lines.append("        // TODO: implement your solution here")
+        lines.append("        return 0;")
+        lines.append("    }")
     elif ret == "bool":
-        lines.append("    // TODO: implement your solution here")
-        lines.append("    return false;")
-        lines.append("}")
+        lines.append("        // TODO: implement your solution here")
+        lines.append("        return false;")
+        lines.append("    }")
     elif ret == "string":
-        lines.append("    // TODO: implement your solution here")
-        lines.append('    return "";')
-        lines.append("}")
+        lines.append("        // TODO: implement your solution here")
+        lines.append('        return "";')
+        lines.append("    }")
     else:
-        lines.append("    // TODO: implement your solution here")
-        lines.append("}")
+        lines.append("        // TODO: implement your solution here")
+        lines.append("    }")
+    lines.append("};")
     return "\n".join(lines) + "\n"
 
 
