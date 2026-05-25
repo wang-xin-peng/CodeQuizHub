@@ -262,6 +262,15 @@ export default function ProblemSolve() {
     if (!problemId || !assignmentId) return;
     setSubmitting(true);
     try {
+      // Save draft first — the debounced auto-save may not have fired yet.
+      // Without this, returning to the problem later shows the template instead of the code.
+      await submissionsApi.saveDraft({
+        problem_id: problemId,
+        assignment_id: assignmentId,
+        language,
+        code,
+      });
+
       const res = await submissionsApi.submitCode({
         assignment_id: assignmentId,
         problem_id: problemId,

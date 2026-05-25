@@ -8,9 +8,6 @@
 # 启动全部服务
 docker compose up -d
 
-# 或按需启动（推荐开发环境）
-docker compose up -d db redis backend frontend judge-worker
-
 # 构建沙箱镜像（首次运行前必须执行）
 docker compose --profile sandbox build
 ```
